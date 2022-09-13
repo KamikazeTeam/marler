@@ -31,7 +31,6 @@ def getAlgo(obs_space,act_space,args):
     return mod.fAlgo(obs_space,act_space,args)
 
 import torch,math,os,glob
-from PTparts.kfac import KFACOptimizer
 class PTAlgo():
     def __init__(self,obs_space,act_space,args):
         self.obs_space, self.act_space, self.args = obs_space, act_space, args
@@ -45,7 +44,6 @@ class PTAlgo():
         if self.args.opt=='RMSprop': optimizer = torch.optim.RMSprop(model.parameters(), self.args.lr, eps=self.args.opt_eps, alpha=self.args.opt_alpha)
         if self.args.opt=='Adam':    optimizer = torch.optim.Adam(model.parameters(), self.args.lr, eps=self.args.opt_eps)
         if self.args.opt=='Adadelta':optimizer = torch.optim.Adadelta(model.parameters(), self.args.lr)
-        if self.args.opt=='Acktr':   optimizer = KFACOptimizer(model, self.args.lr)
         return optimizer
     def create_scheduler(self,optimizer):
         scheduler = None

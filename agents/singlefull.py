@@ -1,7 +1,6 @@
 import numpy as np
 import agents
 from agents.wrappers import Memo,env_to_mem_obs_Stack
-from agents.wrappers_nninfo import DrawInfo
 from algos import getAlgo
 class MyAgent(agents.Agent):
     def __init__(self,args,env):
@@ -27,7 +26,6 @@ class MyAgent(agents.Agent):
 
 def fAgent(args,env):
     agt = MyAgent(args,env)
-    agt = DrawInfo(agt,args,env)
     agt = Memo(agt)
     agt = env_to_mem_obs_Stack(agt)
     return agt
