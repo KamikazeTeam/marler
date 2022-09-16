@@ -1,7 +1,9 @@
 import numpy as np
-import gym, random, json
-from envirs.wrappers import Recorder, Monitor
-from envirs.wrappers import wrap_deepmind_render
+import random
+import gym
+import json
+from .wrappers import Recorder, Monitor
+from .wrappers import WrapDeepmindRender
 from stable_baselines3.common.atari_wrappers import NoopResetEnv, MaxAndSkipEnv, EpisodicLifeEnv, FireResetEnv, \
     WarpFrame, ClipRewardEnv
 from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
@@ -37,19 +39,21 @@ def env_maker(env_name, ienv, env_seed, args):
         np.random.seed(ienv + env_seed)
         env = Recorder(env, ienv, args)
         if args.env_type == 'atari':
-            if args.render: env = Monitor(env, ienv, args, 'org_')
+            if args.render:
+                env = Monitor(env, ienv, args, 'org_')
             env = wrap_deepmind(env)
-            env = wrap_deepmind_render(env)
-        if args.render: env = Monitor(env, ienv, args)
-        if hasattr(env, 'attr'): env.spec._kwargs['attr'] = env.attr
+            env = WrapDeepmindRender(env)
+        if args.render:
+            env = Monitor(env, ienv, args)
+        # if hasattr(env, 'attr'):
+        #     env.spec._kwargs['attr'] = env.attr
         return env
-
     return __make_env
 
 
-def fEnv(args):
-    with open('./myenv/envinfo.json', 'w') as fenvinfo:
-        print(json.dumps(vars(args)), file=fenvinfo)
-    env = [env_maker(args.env_name, ienv, args.env_seed, args) for ienv in range(args.env_num)]
+def get_environment(args):
+    with open('./games/gameinfo.json', 'w') as f:
+        print(json.dumps(vars(args)), file=f)
+    env = [env_maker(args.env_name, ienv, args.env_seed, args) for ienv in range(args.env_nums)]
     env = SubprocVecEnv(env)
     return env

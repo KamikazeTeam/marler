@@ -1,78 +1,8 @@
 import numpy as np
-import torch, algos
-import torch.nn as nn
+import torch
+import algos
 import importlib
 from PTparts import dists
-from models import *
-
-'''LeNet in PyTorch.'''
-import torch.nn.functional as F
-
-
-class testLeNet(nn.Module):
-    def __init__(self):
-        super(testLeNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        out = F.relu(self.conv1(x))
-        out = F.max_pool2d(out, 2)
-        out = F.relu(self.conv2(out))
-        out = F.max_pool2d(out, 2)
-        out = out.view(out.size(0), -1)
-        out = F.relu(self.fc1(out))
-        out = F.relu(self.fc2(out))
-        out = self.fc3(out)
-        return out
-
-
-class Identity(nn.Module):
-    def __init__(self):
-        super(Identity, self).__init__()
-
-    def forward(self, x):
-        return x
-
-
-class net_wrapper(torch.nn.Module):
-    def __init__(self, net, inputs_shape):
-        super(net_wrapper, self).__init__()
-        self.num_outputs = list(net.children())[-1].in_features
-        self.main = net
-        self.main.classifier = Identity()  ### to do, need to get last layer...
-        self.main.linear = Identity()
-
-        if inputs_shape[2] == 1:
-            print('Squeeze stack axis!')
-            layer_inputs = inputs_shape[3]
-            self.squeezeaxis = 2
-        elif inputs_shape[3] == 1:
-            print('Squeeze channel axis!')
-            layer_inputs = inputs_shape[2]
-            self.squeezeaxis = 1
-        else:
-            print('At least one of channel or stack need to be 1!')
-            exit()
-
-        def init(module, weight_init, bias_init, gain=1):
-            weight_init(module.weight.data, gain=gain)
-            bias_init(module.bias.data)
-            return module
-
-        init_ = lambda m: init(m, nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0),
-                               nn.init.calculate_gain('relu'))
-        self.critic_linear = init_(nn.Linear(self.num_outputs, 1))
-
-    def forward(self, inputs):
-        inputs = inputs.squeeze(dim=self.squeezeaxis)
-        # print(inputs.shape)
-        inputs = inputs.contiguous()  # for .view function in networks
-        x = self.main(inputs)
-        return self.critic_linear(x), x
 
 
 class Policy(torch.nn.Module):
@@ -80,53 +10,17 @@ class Policy(torch.nn.Module):
         super(Policy, self).__init__()
         self.obs_space, self.act_space, self.args = obs_space, act_space, args
         self.device = device
-        apfparas = args.apfparas.split('=')
-        cnncnnparas = apfparas[0].split('^')
-        cnnmlpparas = apfparas[1].split('^')
+        approx_func_paras = args.approx_func_paras.split('=')
+        cnn_paras = approx_func_paras[0].split('^')
+        mlp_paras = approx_func_paras[1].split('^')
         inputs_shape = [obs_space.shape[0], obs_space.shape[1], args.stack_num, obs_space.shape[2]]
-        ### use models start
-        netname, net = args.aprxfunc, None
-        if netname == 'lenet': net = LeNet()
-        if netname == 'vgg11': net = VGG('VGG11')
-        if netname == 'vgg13': net = VGG('VGG13')
-        if netname == 'vgg16': net = VGG('VGG16')
-        if netname == 'vgg19': net = VGG('VGG19')
-        if netname == 'res18': net = ResNet18()
-        if netname == 'res34': net = ResNet34()
-        if netname == 'res50': net = ResNet50()
-        if netname == 'res101': net = ResNet101()
-        if netname == 'res152': net = ResNet152()
-        if netname == 'pre': net = PreActResNet18()
-        if netname == 'gln': net = GoogLeNet()
-        if netname == 'den': net = DenseNet121()
-        if netname == 'rex': net = ResNeXt29_2x64d()
-        if netname == 'mob': net = MobileNet()
-        if netname == 'mo2': net = MobileNetV2()
-        if netname == 'dpn': net = DPN92()
-        if netname == 'shf': net = ShuffleNetG2()
-        if netname == 'sen': net = SENet18()
-        if netname == 'sh2': net = ShuffleNetV2(1)
-        if netname == 'eff': net = EfficientNetB0()
-        if netname == 'reg': net = RegNetX_200MF()
-        if netname == 'sim': net = SimpleDLA()
-        if netname == 'rnn': net = RNN()
-        if net != None:
-            self.base = net_wrapper(net, inputs_shape)
-        else:  ### use models end
-            mod = importlib.import_module('PTparts.' + args.aprxfunc)
-            self.base = mod.Network(num_inputs=inputs_shape, num_outputs=int(cnnmlpparas[-1]), paraslist=cnncnnparas)
-        if act_space.__class__.__name__ == "Discrete":
-            self.dist = dists.Categorical(self.base.num_outputs, act_space.n)
-        elif act_space.__class__.__name__ == "Box":
-            self.dist = dists.DiagGaussian(self.base.num_outputs, act_space.shape[0])
-        elif act_space.__class__.__name__ == "MultiBinary":
-            self.dist = dists.Bernoulli(self.base.num_outputs, act_space.shape[0])
-        else:
-            raise NotImplementedError
+        mod = importlib.import_module('PTparts.' + args.approx_func)
+        self.base = mod.Network(num_inputs=inputs_shape, num_outputs=int(mlp_paras[-1]), paraslist=cnn_paras)
+        self.dist = dists.Categorical(self.base.num_outputs, act_space.n)
         self.base = self.base.to(self.device)
         self.dist = self.dist.to(self.device)
-        args.numparas = int(sum([np.prod(p.size()) for p in self.parameters() if p.requires_grad]))  # p.numel()
-        print(args.numparas)
+        args.num_of_paras = int(sum([np.prod(p.size()) for p in self.parameters() if p.requires_grad]))  # p.numel()
+        print(args.num_of_paras)
         for p in self.parameters():
             if p.requires_grad:
                 print(np.prod(p.size()))
@@ -201,8 +95,6 @@ class Algo(algos.PTAlgo):
         mb_done_inv = np.ones(mb_done_int.shape) - mb_done_int
         self.mb_mask = torch.from_numpy(np.expand_dims(mb_done_inv, -1)).to(self.device).float()
         # self.mb_mask   = torch.from_numpy(memo_done).float().unsqueeze(-1).to(self.device)
-
-        # returnsshape   = (info_in['mb_rew'].shape[0]+1, *info_in['mb_rew'].shape[1:], 1)
         self.returns = torch.zeros(info_in['mb_rew'].shape[0] + 1, *info_in['mb_rew'].shape[1:], 1).to(
             self.device).float()
 
@@ -221,13 +113,14 @@ class Algo(algos.PTAlgo):
         action_loss = -(advantages.detach() * action_log_probs).mean()
 
         self.optimizer.zero_grad()
-        (value_loss * self.args.vlossratio + action_loss - dist_entropy * self.args.entropycoef).backward()
+        loss = value_loss * self.args.loss_value_weight + action_loss - dist_entropy * self.args.loss_entropy_weight
+        loss.backward()
         torch.cuda.synchronize()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.grad_max_norm)
         self.optimizer.step()
         return value_loss.item(), action_loss.item(), dist_entropy.item()
 
 
-def fAlgo(obs_space, act_space, args):
+def get_algo(obs_space, act_space, args):
     algo = Algo(obs_space, act_space, args)
     return algo

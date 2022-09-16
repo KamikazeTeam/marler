@@ -1,50 +1,40 @@
 import numpy as np
-import gym, cv2, os
+import gym
+import cv2
+import os
 
 
 class Recorder(gym.Wrapper):
     def __init__(self, env, ienv, args):
         gym.Wrapper.__init__(self, env=env)
-        foldername = args.exp_dir + 'rewards/'
-        os.makedirs(foldername, exist_ok=True)
+        folder_name = args.exp_dir + 'rewards/'
+        os.makedirs(folder_name, exist_ok=True)
         prefix = ''
-        if args.test_steps: prefix = 'test_' + prefix
-        if args.render:     prefix = 'render_' + prefix
-        self.teamagts = [int(num) for num in args.teamagts.split(',')]
-        self.frewards = []
-        for iteam in range(len(self.teamagts)):
-            self.frewards.append(open(foldername + prefix + str(ienv) + '_' + str(iteam), 'a'))
-        self.g_step = args.start_step
-        self.g_step_plus = args.env_num
-        self.teamslice = [0] + [np.sum(self.teamagts[0:i + 1]) for i in range(len(self.teamagts))]
+        if args.test_steps:
+            prefix = 'test_' + prefix
+        if args.render:
+            prefix = 'render_' + prefix
+        self.f_rewards = open(folder_name + prefix + str(ienv), 'a')
+        self.rewards = 0
+        self.g_step = 0
+        self.g_step_plus = args.env_nums
 
     def __del__(self):
-        for file in self.frewards:
-            print('', file=file, flush=True)
-            file.close()
+        print('', file=self.f_rewards, flush=True)
+        self.f_rewards.close()
 
     def reset(self):
         obs = self.env.reset()
-        self.rewards = [0.0 for j in range(len(self.teamagts))]
+        self.rewards = 0
         return obs
 
     def step(self, act):
         obs, rew, done, info = self.env.step(act)
         self.g_step += self.g_step_plus
-        if len(np.asarray(rew).shape) == 0:
-            teamrew = np.asarray([rew])
-        else:
-            teamrew = rew
-        if len(np.asarray(done).shape) == 0:
-            teamdone = np.asarray([done])
-        else:
-            teamdone = done
-        for j in range(len(self.teamagts)):
-            self.rewards[j] += np.sum(teamrew[self.teamslice[j]:self.teamslice[j + 1]])
-            if teamdone[self.teamslice[j]:self.teamslice[
-                j + 1]].any():  # if anyone done in team j, record and reset team rewards
-                print(int(self.g_step), ',', int(self.rewards[j]), end='|', file=self.frewards[j], flush=True)
-                self.rewards[j] = 0.0
+        self.rewards += rew
+        if done:
+            print(self.g_step, ',', int(self.rewards), end='|', file=self.f_rewards, flush=True)
+            self.rewards = 0
         # info = {'last_score':int(self.reward),'last_length':int(self.length),**info}
         return obs, rew, done, info
 
@@ -52,7 +42,7 @@ class Recorder(gym.Wrapper):
 class Monitor(gym.Wrapper):
     def __init__(self, env, ienv, args, prefix=''):
         gym.Wrapper.__init__(self, env=env)
-        videoname = args.exp_dir + prefix + str(args.env_seed) + '_' + str(ienv) + '.mp4'
+        video_name = args.exp_dir + prefix + str(args.env_seed) + '_' + str(ienv) + '.mp4'
         fps, fourcc = args.fps, cv2.VideoWriter_fourcc(*'mp4v')  # 'M','J','P','G')
         if hasattr(env, 'screen_size'):
             screen_size = env.screen_size
@@ -69,8 +59,9 @@ class Monitor(gym.Wrapper):
                 screen_size[1] * args.zoom_in * screen_nums[1])
         else:
             height, width = args.height, args.width
-        if args.env_type == 'atari' and prefix == 'org_': height, width = 210, 160
-        self.vWriter = cv2.VideoWriter(videoname, fourcc, fps, (width, height))
+        if args.env_type == 'atari' and prefix == 'org_':
+            height, width = 210, 160
+        self.vWriter = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
         self.debug = True
         self.debug_one_screen_size, self.debug_height, self.debug_width = screen_size, height, width
 
@@ -97,11 +88,11 @@ class Monitor(gym.Wrapper):
         return obs, rew, done, info
 
 
-class wrap_deepmind_render(gym.Wrapper):
+class WrapDeepmindRender(gym.Wrapper):
     def __init__(self, env):
         gym.Wrapper.__init__(self, env=env)
 
-    def render(self, mode):
+    def render(self, mode):  # def render(self, *args, **kwargs):
         frame = self.env.render(mode)  # mode='rgb_array'
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         frame = cv2.resize(frame, (84, 84), interpolation=cv2.INTER_AREA)  # width,height
