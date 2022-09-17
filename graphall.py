@@ -1,46 +1,36 @@
 import numpy as np
-import argparse, json, easydict, random, os, time, pprint, cProfile, pstats, sys, hashlib
+import os
+import sys
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
+# import matplotlib.ticker as mtick
 from itertools import cycle
 
-robosnames = ['RoboschoolAnt-v1', 'RoboschoolHopper-v1', 'RoboschoolWalker2d-v1', 'RoboschoolHalfCheetah-v1',
-              'RoboschoolReacher-v1']
-atarinames = ["BeamRiderNoFrameskip-v4", "BreakoutNoFrameskip-v4", "PongNoFrameskip-v4", "QbertNoFrameskip-v4"]
-COLORLIST = ['red', 'orange', 'green', 'cyan', 'blue', 'purple']  # ,'black']
-MARKERLIST = ['+', '.', 'o', '*']
+
+atari_names = ["BeamRiderNoFrameskip-v4", "BreakoutNoFrameskip-v4", "PongNoFrameskip-v4", "QbertNoFrameskip-v4"]
+color_list = ['red', 'orange', 'green', 'cyan', 'blue', 'purple']  # ,'black']
+marker_list = ['+', '.', 'o', '*']
 # ",",".","o","v","^","<",">","1","2","3","4","8","s","p","P","*","h","H","+","x","X","d","D","|","_","","","","",""
 
 
-def fig_all_curves(filename, t_steps, fileheadname, filelistname, fileid):
-    COLORS = cycle(COLORLIST)
-    MARKERS = cycle(MARKERLIST)
-    print(fileheadname)
-    for i in range(fileid % len(COLORLIST)):
+def fig_all_curves(_file_name, _curve_length, _suffix, _suffix_list, _file_id):
+    colors = cycle(color_list)
+    markers = cycle(marker_list)
+    print(_suffix)
+    for i in range(_file_id % len(color_list)):
         print(i)
-        color = next(COLORS)
-    for i in range(abs(hash(fileheadname)) % len(MARKERLIST)):
-        marker = next(MARKERS)
-    lines = open(filename, 'r').read().splitlines()
+        next(colors)
+    for i in range(abs(hash(_suffix)) % len(marker_list)):
+        next(markers)
+    lines = open(_file_name, 'r').read().splitlines()
     for i, line in enumerate(lines):
         elements = line.split('|')
-
-        # results/:
-        # drone-v0_10000000_64_5:
-        # full_23_13,987_0,1,0,0_0_11_1_4_70,5,10^70,5,10=1:
-        # imagine_4_5_none,none,0.0_agtcpu:
-        # PTa2c1_0.001_const_0.1,5556,0.8_Adam:
-        # one_0.99_0.5_0.01_0.5:
-        # cnnmlp_7,7,2,2,128,1^3,3,1,1,256,1^7,7=512=64^64
         heads = elements[0].replace('/', ':').split(':')
         print(heads)
         title = heads[1].split('_')[0]  # .split('-')[0]
-        env = heads[2].split('_')
-        agent = heads[3].split('_')
-        method = heads[4].split('_')
-        model = heads[5].split('_')
-        apf = ''  # heads[6].split('_')
-        # labels= ':'.join(heads[2:])
+        env = heads[1].split('_')[1:]
+        agent = heads[2].split('_')
+        method = heads[3].split('_')
+        model = heads[4].split('_')
         if agent[0] == 'imagine' or agent[0] == 'img':
             agentstring = 'independent learner'
             start_step = 0
@@ -50,32 +40,50 @@ def fig_all_curves(filename, t_steps, fileheadname, filelistname, fileid):
         else:
             agentstring = ''
             start_step = 0
-        labels = agentstring + ':' + env[0] + ' env' + '(' + method[0][2:-1] + ')'  ######
-        labels = apf  # env[-2]+':'+method[1]+':'+method[-1]
+        # labels = agentstring + ':' + env[0] + ' env' + '(' + method[0][2:-1] + ')'
+        labels = '_'.join(model)
 
-        totalsteps = t_steps * 10000
-        minscore, maxscore = -50, 50
-        if title == 'RoboschoolAnt-v1':         minscore, maxscore = -0, 3000
-        if title == 'RoboschoolHalfCheetah-v1': minscore, maxscore = -0, 3500
-        if title == 'RoboschoolHopper-v1':      minscore, maxscore = -0, 2500
-        if title == 'RoboschoolReacher-v1':     minscore, maxscore = -50, 25
-        if title == 'RoboschoolWalker2d-v1':    minscore, maxscore = -0, 1500
+        total_steps = _curve_length * 1000000
+        score_min, score_max = -50, 50
+        if title == 'RoboschoolAnt-v1':
+            score_min, score_max = -0, 3000
+        if title == 'RoboschoolHalfCheetah-v1':
+            score_min, score_max = -0, 3500
+        if title == 'RoboschoolHopper-v1':
+            score_min, score_max = -0, 2500
+        if title == 'RoboschoolReacher-v1':
+            score_min, score_max = -50, 25
+        if title == 'RoboschoolWalker2d-v1':
+            score_min, score_max = -0, 1500
 
-        if title == 'BeamRiderNoFrameskip-v4':  minscore, maxscore = -0, 8000
-        if title == 'BreakoutNoFrameskip-v4':   minscore, maxscore = -0, 600  # 1000
-        if title == 'PongNoFrameskip-v4':       minscore, maxscore = -25, 25
-        if title == 'QbertNoFrameskip-v4':      minscore, maxscore = -0, 20000
+        if title == 'BeamRiderNoFrameskip-v4':
+            score_min, score_max = -0, 8000
+        if title == 'BreakoutNoFrameskip-v4':
+            score_min, score_max = -0, 600  # 1000
+        if title == 'PongNoFrameskip-v4':
+            score_min, score_max = -25, 25
+        if title == 'QbertNoFrameskip-v4':
+            score_min, score_max = -0, 20000
 
-        if title == 'LunarLander-v2':  minscore, maxscore = -200, 300
-        if title == 'LunarLanderContinuous-v2':   minscore, maxscore = -200, 300
-        if title == 'BipedalWalker-v2':       minscore, maxscore = -200, 300
-        if title == 'BipedalWalkerHardcore-v2':      minscore, maxscore = -200, 300
+        if title == 'LunarLander-v2':
+            score_min, score_max = -200, 300
+        if title == 'LunarLanderContinuous-v2':
+            score_min, score_max = -200, 300
+        if title == 'BipedalWalker-v2':
+            score_min, score_max = -200, 300
+        if title == 'BipedalWalkerHardcore-v2':
+            score_min, score_max = -200, 300
 
-        if title == 'MountainCar-v0':  minscore, maxscore = -250, -100
-        if title == 'MountainCarContinuous-v0':   minscore, maxscore = -100, 100
-        if title == 'Pendulum-v0':       minscore, maxscore = -2100, -100
-        if title == 'CartPole-v1':      minscore, maxscore = -100, 600
-        if title == 'Acrobot-v1':      minscore, maxscore = -700, 0
+        if title == 'MountainCar-v0':
+            score_min, score_max = -250, -100
+        if title == 'MountainCarContinuous-v0':
+            score_min, score_max = -100, 100
+        if title == 'Pendulum-v0':
+            score_min, score_max = -2100, -100
+        if title == 'CartPole-v1':
+            score_min, score_max = -100, 600
+        if title == 'Acrobot-v1':
+            score_min, score_max = -700, 0
 
         xs, ys, yv = [], [], []
         for element in elements[1].split(',')[:-1]:
@@ -88,45 +96,48 @@ def fig_all_curves(filename, t_steps, fileheadname, filelistname, fileid):
         ys = np.array(ys)
         yv = np.array(yv)
 
-        plt.figure(title)
-        color = next(COLORS)
-        marker = next(MARKERS)
+        plt.figure(title, figsize=(16, 9))
+        color = next(colors)
+        marker = next(markers)
         markers_on = [-1]
-        start = 3
+        start = 0  # 3
         plt.plot(xs[start:], ys[start:], color=color, alpha=1.0, linewidth=0.5, marker=marker, markersize=3,
                  markevery=markers_on, label=labels)
         plt.fill_between(xs[start:], ys[start:] - yv[start:], ys[start:] + yv[start:], facecolor=color, alpha=0.3)
         # plt.legend(bbox_to_anchor=(1.05, 1.0), loc='upper left', borderaxespad=0)
-        plt.legend(loc='lower left')  ######
+        plt.legend(loc='lower left')
         axes = plt.gca()
-        axes.set_xticks(np.arange(0, totalsteps, totalsteps / 10))
-        axes.set_yticks(np.arange(minscore, maxscore, (maxscore - minscore) / 10))
+        axes.set_xticks(np.arange(0, total_steps, total_steps / 10))
+        axes.set_yticks(np.arange(score_min, score_max, (score_max - score_min) / 10))
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0, 0))
-        plt.xlim([0, totalsteps])
-        plt.ylim([minscore, maxscore])
+        plt.xlim([0, total_steps])
+        plt.ylim([score_min, score_max])
         plt.tick_params(labelsize=8)
         plt.title(title)
-        plt.xlabel('Number of Timesteps')
+        plt.xlabel('Number of Time Steps')
         plt.ylabel('Episodic Reward')
-        plt.savefig('res_' + filelistname + '_' + title + '_' + str(round(totalsteps / 1000000, 1)) + '.png',
-                    figsize=(16, 9), dpi=300, facecolor="azure", bbox_inches='tight', pad_inches=0)
+        plt.grid(linewidth=0.1)
+        plt.savefig('compare_' + ','.join(_suffix_list) + '_' + title + '_' + str(_curve_length) + '.png',
+                    dpi=300, facecolor="azure", bbox_inches='tight', pad_inches=0)
 
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
-        suffixlist = str(sys.argv[1]).split(',')
+        curve_length = int(sys.argv[1])
     else:
-        suffixlist = ['']
+        curve_length = 10  # M
     if len(sys.argv) > 2:
-        curvelength = int(sys.argv[2])
+        suffix_list = str(sys.argv[2]).split(',')
     else:
-        curvelength = 5000
+        suffix_list = ['']
     files = os.listdir('./')
     files.sort()
-    for ifile, file_ in enumerate(files):
-        if os.path.isdir(file_): continue
-        if file_[:7] != 'results' or file_[-4:] == '.png': continue
-        filehead = file_.split('_')[0][7:]
-        if filehead in suffixlist:
-            fileheadid = suffixlist.index(filehead)
-            fig_all_curves(file_, curvelength, filehead, str(sys.argv[1]), fileheadid)
+    for _, file_name in enumerate(files):
+        if os.path.isdir(file_name):
+            continue
+        if file_name[:7] != 'results' or file_name[-4:] == '.png':
+            continue
+        suffix = file_name.split('_')[0][7:]
+        if suffix in suffix_list:
+            file_id = suffix_list.index(suffix)
+            fig_all_curves(file_name, curve_length, suffix, suffix_list, file_id)
