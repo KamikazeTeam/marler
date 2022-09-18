@@ -78,6 +78,7 @@ def main():
     parser.add_argument('--fps', type=int, default=60, help='fps for render (default: 60)')
     parser.add_argument('--width', type=int, default=600, help='width for render (default: 600)')
     parser.add_argument('--height', type=int, default=400, help='height for render (default: 400)')
+
     args = parser.parse_args()
     args.exp_dir = 'results/' + args.env_name + '_' + args.env_mode \
                    + '_' + str(args.env_nums) + '_' + str(args.stack_num) + '_' + str(args.roll_num) \
@@ -100,13 +101,10 @@ def main():
     torch.set_num_threads(1)
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-    device = torch.device("cuda:0")
+
     env = importlib.import_module('environment.' + args.env_mode).get_environment(args)
-    print(env.observation_space.shape, env.action_space)
-    env.reset()
     stg = importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size)
-    mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, device,
-                                                                      env.observation_space, env.action_space)
+    mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, env.observation_space, env.action_space)
     alg = importlib.import_module('algorithm.' + args.alg_mode).get_algorithm(args)
     if args.test_steps:
         test(args, env, mdl)

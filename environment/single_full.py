@@ -91,4 +91,5 @@ def get_environment(args):
     env = [env_maker(args.env_name, ienv, args.env_seed, args) for ienv in range(args.env_nums)]
     env = SubprocVecEnv(env)
     env = Stack(env, args)
+    print(env.observation_space.shape, env.action_space)
     return env

@@ -7,10 +7,10 @@ import glob
 
 
 class Policy(torch.nn.Module):
-    def __init__(self, args, device, obs_space, act_space):
+    def __init__(self, args, obs_space, act_space):
         super(Policy, self).__init__()
         self.args = args
-        self.device = device
+        self.device = torch.device("cuda:0")
         approx_func_paras = args.approx_func_paras.split('=')
         cnn_paras = approx_func_paras[0].split('^')
         mlp_paras = approx_func_paras[1].split('^')
@@ -136,6 +136,6 @@ class Policy(torch.nn.Module):
             return None
 
 
-def get_model(args, device, obs_space, act_space):
-    model = Policy(args, device, obs_space, act_space)
+def get_model(args, obs_space, act_space):
+    model = Policy(args, obs_space, act_space)
     return model

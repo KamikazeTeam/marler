@@ -28,20 +28,12 @@ def fig_all_curves(_file_name, _curve_length, _suffix, _suffix_list, _file_id):
         print(heads)
         title = heads[1].split('_')[0]  # .split('-')[0]
         env = heads[1].split('_')[1:]
-        agent = heads[2].split('_')
-        method = heads[3].split('_')
-        model = heads[4].split('_')
-        if agent[0] == 'imagine' or agent[0] == 'img':
-            agentstring = 'independent learner'
-            start_step = 0
-        elif agent[0] == 'reconimg':
-            agentstring = 'incremental learner'
-            start_step = 300000
-        else:
-            agentstring = ''
-            start_step = 0
-        # labels = agentstring + ':' + env[0] + ' env' + '(' + method[0][2:-1] + ')'
-        labels = '_'.join(model)
+        storage = heads[2].split('_')
+        model = heads[3].split('_')
+        algorithm = heads[4].split('_')
+        approximate_function = heads[5].split('_')
+        start_step = 0
+        labels = '_'.join(approximate_function)
 
         total_steps = _curve_length * 1000000
         score_min, score_max = -50, 50
