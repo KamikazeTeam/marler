@@ -4,15 +4,15 @@
 Author: Tushar Jain, Amanpreet Singh
 
 Simulate a predator prey environment.
-Each agent can just observe itself (it's own identity) i.e. s_j = j and vision sqaure around it.
+Each storage can just observe itself (it's own identity) i.e. s_j = j and vision sqaure around it.
 
 Design Decisions:
     - Memory cheaper than time (compute)
     - Using Vocab for class of box:
          -1 out of bound,
-         indexing for predator agent (from 2?)
-         ??? for prey agent (1 for fixed case, for now)
-    - Action Space & Observation Space are according to an agent
+         indexing for predator storage (from 2?)
+         ??? for prey storage (1 for fixed case, for now)
+    - Action Space & Observation Space are according to an storage
     - Rewards -0.05 at each time step till the time
     - Episode never ends
     - Obs. State: Vocab of 1-hot < predator, preys & units >
@@ -89,7 +89,7 @@ class PredatorPreyEnv(gym.Env):
             # TODO
 
         # (0: UP, 1: RIGHT, 2: DOWN, 3: LEFT, 4: STAY)
-        # Define what an agent can do -
+        # Define what an storage can do -
         if self.stay:
             self.naction = 5
         else:
@@ -106,7 +106,7 @@ class PredatorPreyEnv(gym.Env):
         self.vocab_size = 1 + 1 + self.BASE + 1 + 1
         #          predator + prey + grid + outside
 
-        # Observation for each agent will be vision * vision ndarray
+        # Observation for each storage will be vision * vision ndarray
         self.observation_space = spaces.Box(low=0, high=1, shape=(self.vocab_size, (2 * self.vision) + 1, (2 * self.vision) + 1), dtype=int)
         # Actual observation will be of the shape 1 * npredator * (2v+1) * (2v+1) * vocab_size
 

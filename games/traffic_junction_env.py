@@ -4,12 +4,12 @@
 Author: Tushar Jain, Amanpreet Singh
 
 Simulate a traffic junction environment.
-Each agent can observe itself (it's own identity) i.e. s_j = j and vision, path ahead of it.
+Each storage can observe itself (it's own identity) i.e. s_j = j and vision, path ahead of it.
 
 Design Decisions:
     - Memory cheaper than time (compute)
     - Using Vocab for class of box:
-    - Action Space & Observation Space are according to an agent
+    - Action Space & Observation Space are according to an storage
     - Rewards
          -0.05 at each time step till the time
          -10 for each crash
@@ -106,7 +106,7 @@ class TrafficJunctionEnv(gym.Env):
         self.exact_rate = self.add_rate = self.add_rate_min
         self.epoch_last_update = 0
 
-        # Define what an agent can do -
+        # Define what an storage can do -
         # (0: GAS, 1: BRAKE) i.e. (0: Move 1-step, 1: STAY)
         self.naction = 2
         self.action_space = spaces.Discrete(self.naction)
@@ -143,7 +143,7 @@ class TrafficJunctionEnv(gym.Env):
             # r_i, (x,y), vocab = [road class + car]
             self.vocab_size = 1 + 1
 
-            # Observation for each agent will be 4-tuple of (r_i, last_act, len(dims), vision * vision * vocab)
+            # Observation for each storage will be 4-tuple of (r_i, last_act, len(dims), vision * vision * vocab)
             self.observation_space = spaces.Tuple((
                 spaces.Discrete(self.naction),
                 spaces.Discrete(self.npath),
@@ -230,7 +230,7 @@ class TrafficJunctionEnv(gym.Env):
 
         assert np.all(action <= self.naction), "Actions should be in the range [0,naction)."
 
-        assert len(action) == self.ncar, "Action for each agent should be provided."
+        assert len(action) == self.ncar, "Action for each storage should be provided."
 
         # No one is completed before taking action
         self.is_completed = np.zeros(self.ncar)
@@ -549,7 +549,7 @@ class TrafficJunctionEnv(gym.Env):
             self.car_route_loc[idx] += 1
             curr = self.car_route_loc[idx]
 
-            # car/agent has reached end of its path
+            # car/storage has reached end of its path
             if curr == len(self.chosen_path[idx]):
                 self.cars_in_sys -= 1
                 self.alive_mask[idx] = 0

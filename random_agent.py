@@ -14,7 +14,7 @@ class RandomAgent(object):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Example GCCNet environment random agent')
+    parser = argparse.ArgumentParser('Example GCCNet environment random storage')
     parser.add_argument('--nagents', type=int, default=16, help="Number of agents")
     parser.add_argument('--nfriendly', type=int, default=8, help="Number of agents")
     parser.add_argument('--display', action="store_true", default=False,
