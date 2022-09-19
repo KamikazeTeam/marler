@@ -4,6 +4,41 @@ import cv2
 import os
 
 
+class Stack(gym.Wrapper):
+    def __init__(self, env, args):
+        gym.Wrapper.__init__(self, env=env)
+        self.args = args
+        self.zero_stack = np.zeros([self.args.env_nums] +
+                                   [self.args.stack_num] +
+                                   list(env.observation_space.shape),
+                                   dtype=env.observation_space.dtype)
+        self.obs_stack = self.zero_stack.copy()
+
+    def obs_stack_update(self, _new_obs, old_obs_stack):
+        updated_obs_stack = np.roll(old_obs_stack, shift=-1, axis=1)
+        updated_obs_stack[:, -1, :] = _new_obs  # [:]###
+        return updated_obs_stack
+
+    def reset(self):
+        obs = self.env.reset()
+        self.obs_stack = self.zero_stack.copy()
+        self.obs_stack = self.obs_stack_update(obs, self.obs_stack)
+        obs = self.obs_stack
+        return obs
+
+    def step(self, act):
+        obs, rew, done, info = self.env.step(act)
+        self.zero(done)
+        self.obs_stack = self.obs_stack_update(obs, self.obs_stack)
+        obs = self.obs_stack
+        return obs, rew, done, info
+
+    def zero(self, done):
+        for i, done_i in enumerate(done):
+            if done_i:
+                self.obs_stack[i] *= 0  # [:-1]*=0
+
+
 class Recorder(gym.Wrapper):
     def __init__(self, env, ienv, args):
         gym.Wrapper.__init__(self, env=env)

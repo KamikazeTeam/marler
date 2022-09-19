@@ -13,7 +13,7 @@ class Algorithm:
         mb_obs = torch.from_numpy(info_in['mb_obs']).to(device).float()
         mb_act = torch.from_numpy(info_in['mb_act']).to(device)
         if model.act_space.__class__.__name__ == 'Discrete':  #
-            mb_act = mb_act.long()
+            mb_act = mb_act.to(torch.int64)  # long()
         mb_nob = torch.from_numpy(info_in['mb_new_obs']).to(device).float()
         mb_rew = torch.from_numpy(info_in['mb_rew']).to(device).float().unsqueeze(-1)
         mb_done_int = info_in['mb_done'].astype(int)
@@ -38,12 +38,11 @@ class Algorithm:
         value_loss = advantages.pow(2).mean()
         action_loss = -(advantages.detach() * action_log_probs).mean()
 
-        model.optimizer.zero_grad()
+        model.optimizer_zero_grad()
         loss = value_loss * self.args.loss_value_weight + action_loss - dist_entropy * self.args.loss_entropy_weight
         loss.backward()
         torch.cuda.synchronize()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), self.args.grad_max_norm)
-        model.optimizer.step()
+        model.optimizer_step()
         return value_loss.item(), action_loss.item(), dist_entropy.item()
 
 

@@ -60,7 +60,6 @@ def main():
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor for rewards (default: 0.99)')
     parser.add_argument('--loss-value-weight', type=float, default=0.5, help='value loss coefficient (default: 0.5)')
     parser.add_argument('--loss-entropy-weight', type=float, default=0.01, help='entropy coefficient (default: 0.01)')
-    parser.add_argument('--grad-max-norm', type=float, default=0.5, help='max norm of gradients (default: 0.5)')
     parser.add_argument('--mdl-mode', default='neural', help='model to use: neural | ')  # model
     parser.add_argument('--lr-M', default='700', help='learning rate (default: 700e-6)')
     parser.add_argument('--decay', default='linear', help='decay to use: linear | exp | cos | cos-cos | cos-dec')
@@ -68,6 +67,7 @@ def main():
     parser.add_argument('--opt', default='RMSprop', help='optimizer to use: RMSprop | Adam | ()')
     parser.add_argument('--opt-eps', type=float, default=1e-5, help='optimizer epsilon (default: 1e-5)')
     parser.add_argument('--opt-alpha', type=float, default=0.99, help='optimizer alpha (default: 0.99)')
+    parser.add_argument('--grad-max-norm', type=float, default=0.5, help='max norm of gradients (default: 0.5)')
     parser.add_argument('--approx-func', default='cnn2d', help='approximate function: cnn2d | cnn3d | res3d')
     parser.add_argument('--approx-func-paras', default='8,8,4,4,32,1^4,4,2,2,64,1^3,3,1,1,64,1=512=64',
                         help='approximate function parameters')  # approximate function

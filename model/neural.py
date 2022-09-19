@@ -67,10 +67,18 @@ class Policy(torch.nn.Module):
         else:
             self.scheduler.step()
 
+    def optimizer_zero_grad(self):
+        self.optimizer.zero_grad()
+
+    def optimizer_step(self):
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.args.grad_max_norm)
+        self.optimizer.step()
+
     def forward(self, inputs):
         raise NotImplementedError
 
-    def input_permute(self, _inputs):
+    @staticmethod
+    def input_permute(_inputs):
         return _inputs.permute(0, 4, 1, 2, 3) / 255.0  # go to batch,channel,stack,width,height
 
     def get_action(self, _inputs, explore):
