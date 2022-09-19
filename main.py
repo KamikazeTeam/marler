@@ -17,11 +17,11 @@ def train(args, env, mdl, stg, alg):
     try:
         if args.to_load:
             mdl.load()
-        obs = env.reset()
+        obs, info = env.reset()
         for t in iterator:
             for n in range(args.roll_num):
                 act, act_info = mdl.get_action(obs, explore=True)
-                new_obs, rew, done, info = env.step(act)  # must create a new_obs each step
+                new_obs, rew, done, timeout, info = env.step(act)  # must create a new_obs each step
                 stg.append_data(obs, act, act_info, new_obs, rew, done, info)
                 obs = np.copy(new_obs)  # must copy!
             data = stg.get_data()
@@ -33,14 +33,14 @@ def train(args, env, mdl, stg, alg):
 
 def test(args, env, mdl):
     mdl.load()
-    obs = env.reset()
+    obs, info = env.reset()
     args.max_test_steps = int(args.test_steps // args.env_nums)
     iterator = tqdm.tqdm(range(args.max_test_steps))
     for _ in iterator:
         if args.render:
-            env.render(mode='rgb_array')
+            env.render()
         act, act_info = mdl.get_action(obs, explore=False)
-        new_obs, rew, done, info = env.step(act)
+        new_obs, rew, done, timeout, info = env.step(act)
         obs = np.copy(new_obs)
 
 

@@ -14,29 +14,35 @@ class Stack(gym.Wrapper):
                                    dtype=env.observation_space.dtype)
         self.obs_stack = self.zero_stack.copy()
 
-    def obs_stack_update(self, _new_obs, old_obs_stack):
+    @staticmethod
+    def obs_stack_update(_new_obs, old_obs_stack):
         updated_obs_stack = np.roll(old_obs_stack, shift=-1, axis=1)
         updated_obs_stack[:, -1, :] = _new_obs  # [:]###
         return updated_obs_stack
 
     def reset(self):
-        obs = self.env.reset()
+        obs, info = self.env.reset()
         self.obs_stack = self.zero_stack.copy()
         self.obs_stack = self.obs_stack_update(obs, self.obs_stack)
         obs = self.obs_stack
-        return obs
+        return obs, info
 
     def step(self, act):
-        obs, rew, done, info = self.env.step(act)
+        obs, rew, done, timeout, info = self.env.step(act)
         self.zero(done)
         self.obs_stack = self.obs_stack_update(obs, self.obs_stack)
         obs = self.obs_stack
-        return obs, rew, done, info
+        return obs, rew, done, timeout, info
 
     def zero(self, done):
         for i, done_i in enumerate(done):
             if done_i:
                 self.obs_stack[i] *= 0  # [:-1]*=0
+
+    def render(self):
+        frame = self.env.render(mode='rgb_array')
+        # else render window will be open (by SubprocVecEnv setting?)
+        return frame
 
 
 class Recorder(gym.Wrapper):
@@ -59,19 +65,18 @@ class Recorder(gym.Wrapper):
         self.f_rewards.close()
 
     def reset(self):
-        obs = self.env.reset()
         self.rewards = 0
-        return obs
+        return self.env.reset()
 
     def step(self, act):
-        obs, rew, done, info = self.env.step(act)
+        obs, rew, done, timeout, info = self.env.step(act)
         self.g_step += self.g_step_plus
         self.rewards += rew
         if done:
             print(self.g_step, ',', int(self.rewards), end='|', file=self.f_rewards, flush=True)
             self.rewards = 0
         # info = {'last_score':int(self.reward),'last_length':int(self.length),**info}
-        return obs, rew, done, info
+        return obs, rew, done, timeout, info
 
 
 class Monitor(gym.Wrapper):
@@ -103,42 +108,26 @@ class Monitor(gym.Wrapper):
     def __del__(self):
         self.vWriter.release()
 
-    def render(self, mode):
-        frame = self.env.render(mode)  # mode='rgb_array'
+    def render(self):
+        frame = self.env.render()
         if self.debug:
             print('debug_one_screen_size:', self.debug_one_screen_size)
-            print('debugvideoheightwidth: ', self.debug_height, '', self.debug_width)
+            print('debug_video_size_h_w : ', self.debug_height, '', self.debug_width)
             print('debug     frame.shape:', frame.shape)
             self.debug = False
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         self.vWriter.write(frame)
         return frame
 
-    def reset(self):
-        obs = self.env.reset()
-        return obs
-
-    def step(self, act):
-        obs, rew, done, info = self.env.step(act)
-        return obs, rew, done, info
-
 
 class WrapDeepmindRender(gym.Wrapper):
     def __init__(self, env):
         gym.Wrapper.__init__(self, env=env)
 
-    def render(self, mode):  # def render(self, *args, **kwargs):
-        frame = self.env.render(mode)  # mode='rgb_array'
+    def render(self):
+        frame = self.env.render()
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         frame = cv2.resize(frame, (84, 84), interpolation=cv2.INTER_AREA)  # width,height
         frame = np.expand_dims(frame, -1)
         frame = np.tile(frame, 3)
         return frame
-
-    def reset(self):
-        obs = self.env.reset()
-        return obs
-
-    def step(self, act):
-        obs, rew, done, info = self.env.step(act)
-        return obs, rew, done, info

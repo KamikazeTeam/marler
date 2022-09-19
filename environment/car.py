@@ -3,32 +3,18 @@ import random
 import gym
 import json
 from .wrappers import Recorder, Monitor, Stack
-from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
-
-
-class ObservationModifier(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env=env)
-
-    def reset(self):
-        obs, info = self.env.reset()
-        return obs
-
-    def step(self, act):
-        obs, rew, done, timeout, info = self.env.step(act)
-        return obs, rew, done, info
+from .subproc_vec_env import SubprocVecEnv
 
 
 def env_maker(env_name, ienv, env_seed, args):
     def __make_env():
         if args.env_type == 'discrete':
-            env = gym.make(env_name, continuous=False)  #
+            env = gym.make(env_name, render_mode="state_pixels", continuous=False)  #
         else:
-            env = gym.make(env_name)
+            env = gym.make(env_name, render_mode="state_pixels")
         # env.seed(ienv + env_seed)
         random.seed(ienv + env_seed)
         np.random.seed(ienv + env_seed)
-        env = ObservationModifier(env)  #
         env = Recorder(env, ienv, args)
         if args.render:
             env = Monitor(env, ienv, args)
