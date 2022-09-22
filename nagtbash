@@ -16,10 +16,126 @@ for ((i=$1; i<$1+$2; i++))
 do
   echo "$i" $(($1+$2-1))
   kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
-  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 3 --stg-mode deque --memo-size 5 \
+  --env-nums 36 --stack-num 5 --roll-num 5 --max-stepsM 0.6 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 100 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,128,0=512 \
+  #--test-steps 5000 --render --fps 120 --width 588 --height 388
+  #--loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+done
+exit 1
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 12 --stack-num 5 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 1000 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,128,0=512 \
+  #--loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 5000 --render --fps 120
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 12 --stack-num 5 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 300 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,128,0=512 \
+  #--loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 5000 --render --fps 120
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 12 --stack-num 5 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 100 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,128,0=512 \
+  #--loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 5000 --render --fps 120
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 12 --stack-num 5 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 30 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,128,0=512 \
+  #--loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 5000 --render --fps 120
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+done
+exit 1
+
+for ((i=$1; i<$1+$2; i++))
+do
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 24 --stack-num 5 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 30 --decay linear --decay-paras 0.01,, --opt Adam --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  --loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 5000 --render --fps 120
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^3,3,2,2,0,0,128,0=256 \
+done
+exit 1
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 64 --stack-num 5 --roll-num 5 --max-stepsM 10 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 100 --decay linear --decay-paras 0.01,, --opt Adam --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,64,0^4,4,2,2,0,0,128,0^3,3,1,1,0,0,256,0=512 \
+  --loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 2000 --render --fps 20
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+done
+exit 1
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 12 --stack-num 5 --roll-num 5 --max-stepsM 1 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 100 --decay linear --decay-paras 0.01,, --opt Adam --alg-mode PTa2c1 \
+  --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,16,0^3,3,2,2,0,0,32,0=256 \
+  --loss-entropy-weight 0.1 --opt-eps 1e-8 \
+  #--test-steps 2000 --render --fps 20
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+done
+exit 1
+
+for ((i=$1; i<$1+$2; i++))
+do
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 10 --stg-mode deque --memo-size 5 \
   --mdl-mode neural --lr-M 700 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
-  --approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^3,3,2,2,2,1,0,0,0,64,1^3,3,1,2,2,1,0,0,0,64,1=512 \
-  #--test-steps 5000 --render --fps 20
+  --approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,128,1^5,5,2,3,3,1,0,0,0,256,1^4,4,1,2,2,1,0,0,0,512,1=512 \
+  #--test-steps 2000 --render --fps 20
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+done
+exit 1
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 10 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 700 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^5,5,2,3,3,1,0,0,0,32,1^4,4,1,2,2,1,0,0,0,32,1=512 \
+  --test-steps 2000 --render --fps 20
+  #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
+  #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
+
+  echo "$i" $(($1+$2-1))
+  kernprof -l main.py --env-seed "$i" --env-mode 'car' --env-type 'discrete' --env-name "CarRacing-v2" \
+  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 10 --stg-mode deque --memo-size 5 \
+  --mdl-mode neural --lr-M 700 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
+  --approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,64,1^5,5,2,3,3,1,0,0,0,128,1^4,4,1,2,2,1,0,0,0,128,1=512 \
+  --test-steps 2000 --render --fps 20
   #--approx-func cnn3d --approx-func-paras 8,8,3,4,4,1,0,0,0,32,1^4,4,2,2,2,1,0,0,0,64,1^3,3,1,1,1,1,0,0,0,64,1=512 \
   #--approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
 done

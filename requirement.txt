@@ -1,0 +1,5 @@
+python 3.9.13
+stable_baselines3 1.6.0
+gym 0.26.0
+ale-py 0.8.0
+

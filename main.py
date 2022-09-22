@@ -76,8 +76,8 @@ def main():
     parser.add_argument('--render', action='store_true', default=False, help='render flag')
     parser.add_argument('--zoom-in', type=int, default=1, help='zoom-in size for render (default: 1)')
     parser.add_argument('--fps', type=int, default=60, help='fps for render (default: 60)')
-    parser.add_argument('--width', type=int, default=600, help='width for render (default: 600)')
-    parser.add_argument('--height', type=int, default=400, help='height for render (default: 400)')
+    parser.add_argument('--width', type=int, default=-1, help='width for render (default: 600)')
+    parser.add_argument('--height', type=int, default=-1, help='height for render (default: 400)')
 
     args = parser.parse_args()
     args.exp_dir = 'results/' + args.env_name + '_' + args.env_mode \

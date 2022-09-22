@@ -94,11 +94,11 @@ class Monitor(gym.Wrapper):
             screen_nums = [1, 1]
         # if hasattr(env, 'zoom_in'):     zoom_in     = args.zoom_in*env.zoom_in
         # else:                           zoom_in     = args.zoom_in
-        if len(screen_size) == 2:
-            height, width = int(screen_size[0] * args.zoom_in * screen_nums[0]), int(
-                screen_size[1] * args.zoom_in * screen_nums[1])
-        else:
+        if args.height != -1 and args.width != -1:
             height, width = args.height, args.width
+        else:
+            height, width = int(screen_size[0] * args.zoom_in * screen_nums[0]),\
+                            int(screen_size[1] * args.zoom_in * screen_nums[1])
         if args.env_type == 'atari' and prefix == 'org_':
             height, width = 210, 160
         self.vWriter = cv2.VideoWriter(video_name, fourcc, fps, (width, height))

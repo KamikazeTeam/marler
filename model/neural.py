@@ -19,8 +19,8 @@ class Policy(torch.nn.Module):
         self.base = mod.Network(num_inputs=inputs_shape, num_outputs=int(mlp_paras[-1]), paraslist=cnn_paras)
         if act_space.__class__.__name__ == "Discrete":
             self.dist = dists.Categorical(self.base.num_outputs, act_space.n)
-        # elif act_space.__class__.__name__ == "Box":
-        #     self.dist = dists.DiagGaussian(self.base.num_outputs, act_space.shape[0])
+        elif act_space.__class__.__name__ == "Box":
+            self.dist = dists.Gaussian(self.base.num_outputs, act_space.shape[0])
         self.base = self.base.to(self.device)
         self.dist = self.dist.to(self.device)
         args.num_of_paras = int(sum([np.prod(p.size()) for p in self.parameters() if p.requires_grad]))  # p.numel()
