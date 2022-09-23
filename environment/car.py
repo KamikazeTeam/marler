@@ -52,9 +52,11 @@ class Preprocess(gym.Wrapper):
 def env_maker(env_name, ienv, env_seed, args):
     def __make_env():
         if args.env_type == 'discrete':
-            env = gym.make(env_name, render_mode="rgb_array", continuous=False)  # rgb_array state_pixels
+            env = gym.make(env_name, render_mode="rgb_array", continuous=False)
+        elif args.env_type == 'continuous':
+            env = gym.make(env_name, render_mode="rgb_array")  # rgb_array state_pixels
         else:
-            env = gym.make(env_name, render_mode="rgb_array")
+            raise NotImplementedError
         env = Preprocess(env)
         # env.seed(ienv + env_seed)
         random.seed(ienv + env_seed)
