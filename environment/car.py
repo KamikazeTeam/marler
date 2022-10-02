@@ -69,8 +69,6 @@ def env_maker(env_name, ienv, env_seed, args):
 
 
 def get_environment(args):
-    with open('./games/gameinfo.json', 'w') as f:
-        print(json.dumps(vars(args)), file=f)
     env = [env_maker(args.env_name, ienv, args.env_seed, args) for ienv in range(args.env_nums)]
     env = SubprocVecEnv(env)
     env = Stack(env, args)

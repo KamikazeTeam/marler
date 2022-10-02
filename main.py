@@ -5,6 +5,7 @@ import os
 import tqdm
 import importlib
 import torch
+import json
 import wandb
 
 
@@ -114,6 +115,8 @@ def main():
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
+    # with open('./games/gameinfo.json', 'w') as f:
+    #     print(json.dumps(vars(args)), file=f)
     env = importlib.import_module('environment.' + args.env_mode).get_environment(args)
     stg = importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size)
     mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, env.observation_space, env.action_space)
