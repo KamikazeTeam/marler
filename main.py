@@ -12,8 +12,8 @@ import wandb
 # @profile  # perf_counter used, not process_time,count real time,not cpu time
 def train(args, env, mdl, stg, alg):
     # wandb.init(project=args.env_name)
-    print(args.__dict__)
-    exit()
+    # print(args.__dict__)
+    # exit()
     # wandb.config = args.__dict__
     with open(args.exp_dir[:-1] + '_args', 'w') as f:
         json.dump(args.__dict__, f, indent=2)
