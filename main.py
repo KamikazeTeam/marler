@@ -6,10 +6,15 @@ import json
 import tqdm
 import importlib
 import torch
+import wandb
 
 
 # @profile  # perf_counter used, not process_time,count real time,not cpu time
 def train(args, env, mdl, stg, alg):
+    # wandb.init(project=args.env_name)
+    print(args.__dict__)
+    exit()
+    # wandb.config = args.__dict__
     with open(args.exp_dir[:-1] + '_args', 'w') as f:
         json.dump(args.__dict__, f, indent=2)
     args.max_train_steps = int(args.max_steps // args.env_nums // args.roll_num)
@@ -25,7 +30,9 @@ def train(args, env, mdl, stg, alg):
                 stg.append_data(obs, act, act_info, new_obs, rew, done, info)
                 obs = np.copy(new_obs)  # must copy!
             data = stg.get_data()
-            alg.update(t, args.max_train_steps, data, mdl)
+            value_loss, action_loss, dist_entropy = alg.update(t, args.max_train_steps, data, mdl)
+            # wandb.log({"value_loss": value_loss, "action_loss": action_loss, "dist_entropy": dist_entropy})
+            # wandb.watch(mdl)
         mdl.save(str(args.env_seed) + '_' + str(t))
     except KeyboardInterrupt:
         mdl.save(str(args.env_seed) + '_' + str(t))  # if pass, files will not have enough time to close...
