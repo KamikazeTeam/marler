@@ -2,7 +2,6 @@ import argparse
 import numpy as np
 import random
 import os
-import json
 import tqdm
 import importlib
 import torch
@@ -11,12 +10,9 @@ import wandb
 
 # @profile  # perf_counter used, not process_time,count real time,not cpu time
 def train(args, env, mdl, stg, alg):
-    # wandb.init(project=args.env_name)
-    # print(args.__dict__)
-    # exit()
-    # wandb.config = args.__dict__
-    with open(args.exp_dir[:-1] + '_args', 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    if args.wandb:
+        wandb.init(project=args.env_name)
+        wandb.config.update(args)
     args.max_train_steps = int(args.max_steps // args.env_nums // args.roll_num)
     t, iterator = 0, tqdm.tqdm(range(args.max_train_steps))
     try:
@@ -29,9 +25,17 @@ def train(args, env, mdl, stg, alg):
                 new_obs, rew, done, timeout, info = env.step(act)  # must create a new_obs each step
                 stg.append_data(obs, act, act_info, new_obs, rew, done, info)
                 obs = np.copy(new_obs)  # must copy!
+                for i, info_i in enumerate(info):
+                    if 'score' in info_i:
+                        if args.wandb:
+                            wandb.log({"g_step": info_i['g_step'],  # it is possible to have multi-score in same g_step
+                                       # "score/"+str(i): info_i['score'],
+                                       "scores": info_i['score']})
             data = stg.get_data()
             value_loss, action_loss, dist_entropy = alg.update(t, args.max_train_steps, data, mdl)
-            # wandb.log({"value_loss": value_loss, "action_loss": action_loss, "dist_entropy": dist_entropy})
+            if args.wandb:
+                wandb.log({"update_step": (t+1)*args.roll_num*args.env_nums,  # g_step not only increase, need fix
+                           "value_loss": value_loss, "action_loss": action_loss, "dist_entropy": dist_entropy})
             # wandb.watch(mdl)
         mdl.save(str(args.env_seed) + '_' + str(t))
     except KeyboardInterrupt:
@@ -85,6 +89,7 @@ def main():
     parser.add_argument('--fps', type=int, default=60, help='fps for render (default: 60)')
     parser.add_argument('--width', type=int, default=-1, help='width for render (default: 600)')
     parser.add_argument('--height', type=int, default=-1, help='height for render (default: 400)')
+    parser.add_argument('--wandb', action='store_false', default=True, help='wandb flag')
 
     args = parser.parse_args()
     args.exp_dir = 'results/' + args.env_name + '_' + args.env_mode \

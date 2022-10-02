@@ -73,9 +73,9 @@ class Recorder(gym.Wrapper):
         self.g_step += self.g_step_plus
         self.rewards += rew
         if done:
+            info = {'score': int(self.rewards), 'g_step': self.g_step, **info}
             print(self.g_step, ',', int(self.rewards), end='|', file=self.f_rewards, flush=True)
             self.rewards = 0
-        # info = {'last_score':int(self.reward),'last_length':int(self.length),**info}
         return obs, rew, done, timeout, info
 
 

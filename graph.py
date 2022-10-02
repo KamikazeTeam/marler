@@ -1,23 +1,23 @@
 import numpy as np
 import argparse
-import json
-import easydict
 import os
 import matplotlib.pyplot as plt
 # import matplotlib.ticker as mtick
 from itertools import cycle
 
 
-def fig_curves(folder_exp, _args_draw, _args):
+def fig_curves(folder_exp, _args_draw):
     real_data_alpha, real_data_width = 0.1, 0.1
     real_data_mean_alpha, real_data_mean_width = 0.3, 0.1
     regular_data_alpha, regular_data_width = 0.8, 0.3
     # if _args.env_mode == 'supervise':
     #     _args.env_nums, _args_draw.avg_num, realdata_alpha, realdata_width = 1, 1, 1.0, 0.5
+    names_result = os.listdir(folder_exp + _args_draw.folder_sub)
+    _args_draw.env_nums = len(names_result)
     filename_common = folder_exp + _args_draw.folder_sub + _args_draw.prefix
-    print('filename', filename_common)
+    print(filename_common, ':filename')
     lines = []
-    for i in range(_args.env_nums):
+    for i in range(_args_draw.env_nums):
         file_i_lines = open(filename_common + str(i), "r").read().splitlines()
         lines.append([line for line in file_i_lines if len(line) != 0])
     num_of_exp = len(lines[0])
@@ -28,7 +28,7 @@ def fig_curves(folder_exp, _args_draw, _args):
     for j in range(num_of_exp):
         color = next(color_list)
         xy_tuples = []
-        for i in range(_args.env_nums):
+        for i in range(_args_draw.env_nums):
             records = []
             try:
                 records = lines[i][j].split("|")[:-1]  # [:int(_args.max_episodes)]
@@ -57,8 +57,8 @@ def fig_curves(folder_exp, _args_draw, _args):
             print(np.array(sorted_xy_tuples_y).mean())
         regular_x, regular_y = [], []
         step_start = 0  # int(_args.start_step)
-        step_end = int(step_start + _args.max_steps)
-        step_interval = int(_args.max_steps / 200)  # hard code
+        step_end = int(step_start + _args_draw.max_steps)
+        step_interval = int(_args_draw.max_steps / 200)  # hard code
         for step_i in range(step_start, step_end, step_interval):
             index = next((index for index, value in enumerate(sorted_xy_tuples_x) if value > step_i),
                          len(sorted_xy_tuples_x) - 1)
@@ -79,7 +79,7 @@ def fig_curves(folder_exp, _args_draw, _args):
                      regular_y_means_mean + regular_y_means_var, facecolor='black', alpha=0.5)
 
     step_start = 0  # int(_args.start_step)
-    step_end = int(step_start + _args.max_steps)
+    step_end = int(step_start + _args_draw.max_steps)
     max_steps = step_end  # int(_args.max_steps)*int(_args.roll_num)*int(_args.env_num)
     axes = plt.gca()
     axes.set_xticks(np.arange(0, max_steps, max_steps / 10))  # hard code
@@ -98,7 +98,7 @@ def fig_curves(folder_exp, _args_draw, _args):
     plt.savefig(fig_name + '.png', dpi=200, facecolor="azure", bbox_inches='tight')  # pad_inches=0)
     plt.close()
 
-    with open(_args_draw.folder[:-1] + '_' + _args.env_name, 'a') as fall:
+    with open(_args_draw.folder[:-1] + '_' + _args_draw.env_name, 'a') as fall:
         print(fig_name, end='|', file=fall)
         for data in regular_x_means:
             print(data, end=',', file=fall)
@@ -118,16 +118,17 @@ if __name__ == '__main__':
     parser.add_argument('--folder-sub', default='rewards/', help='')
     parser.add_argument('--prefix', default='', help='')
     parser.add_argument('--minmax', default='', help='')
+    parser.add_argument('--max-steps', type=int, default=10e6, help='')
     parser.add_argument('--avg-num', type=int, default=10, help='')
     parser.add_argument('--team-nums', type=int, default=0, help='')
     parser.add_argument('--team-draw', type=int, default=0, help='')
     args_draw = parser.parse_args()
-    files = os.listdir(args_draw.folder)
-    files.sort()
-    for file in files:
-        if file[-5:] != '_args':
+    names = os.listdir(args_draw.folder)
+    names.sort()
+    for name in names:
+        name_abs = args_draw.folder + name
+        if os.path.isfile(name_abs):
             continue
-        args = easydict.EasyDict()
-        with open(args_draw.folder + file, 'r') as f:
-            args.__dict__ = json.load(f)
-        fig_curves(args_draw.folder + file[:-5] + '/', args_draw, args)
+        args_draw.env_name = name.split('_')[0]
+        print(args_draw.env_name)
+        fig_curves(name_abs + '/', args_draw)

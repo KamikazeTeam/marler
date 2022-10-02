@@ -16,7 +16,7 @@ for ((i=$1; i<$1+$2; i++))
 do
   echo "$i" $(($1+$2-1))
   kernprof -l main.py --env-seed "$i" --env-mode 'atari' --env-type 'atari' --env-name "BreakoutNoFrameskip-v4" \
-  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 10 --stg-mode deque --memo-size 5 \
+  --env-nums 64 --stack-num 4 --roll-num 5 --max-stepsM 5 --stg-mode deque --memo-size 5 \
   --mdl-mode neural --lr-M 700 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
   --approx-func cnn2d --approx-func-paras 8,8,4,4,0,0,32,0^4,4,2,2,0,0,64,0^3,3,1,1,0,0,64,0=512 \
   #--test-steps 5000 --render --fps 120

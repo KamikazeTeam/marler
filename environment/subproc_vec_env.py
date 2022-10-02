@@ -30,7 +30,8 @@ def _worker(
                 if done:
                     # save final observation where user can get it, then reset
                     info["terminal_observation"] = observation
-                    observation, info = env.reset()  # fixed
+                    observation, info_reset = env.reset()  # fixed
+                    info = {**info, **info_reset}  # fixed overwrite the same key's value in last info by reset info
                 remote.send((observation, reward, done, timeout, info))  # fixed
             elif cmd == "seed":
                 remote.send(env.seed(data))
