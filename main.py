@@ -5,7 +5,6 @@ import os
 import tqdm
 import importlib
 import torch
-import json
 import wandb
 
 
@@ -91,6 +90,7 @@ def main():
     parser.add_argument('--width', type=int, default=-1, help='width for render (default: 600)')
     parser.add_argument('--height', type=int, default=-1, help='height for render (default: 400)')
     parser.add_argument('--wandb', action='store_false', default=True, help='wandb flag')
+    # use importlib to add games argument to parser
 
     args = parser.parse_args()
     args.exp_dir = 'results/' + args.env_name + '_' + args.env_mode \
@@ -115,8 +115,6 @@ def main():
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-    # with open('./games/gameinfo.json', 'w') as f:
-    #     print(json.dumps(vars(args)), file=f)
     env = importlib.import_module('environment.' + args.env_mode).get_environment(args)
     stg = importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size)
     mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, env.observation_space, env.action_space)

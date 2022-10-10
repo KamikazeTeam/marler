@@ -4,7 +4,7 @@ import gym
 import json
 from .wrappers import Recorder, Monitor, Stack
 from .subproc_vec_env import SubprocVecEnv
-from .image_utils import to_grayscale, zero_center, crop
+from .car_image_utils import to_grayscale, zero_center, crop
 
 
 class Preprocess(gym.Wrapper):

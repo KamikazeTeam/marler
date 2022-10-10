@@ -1,523 +1,134 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-Author: Tushar Jain, Amanpreet Singh
-
-Simulate a traffic junction environment.
-Each storage can observe itself (it's own identity) i.e. s_j = j and vision, path ahead of it.
-
-Design Decisions:
-    - Memory cheaper than time (compute)
-    - Using Vocab for class of box:
-    - Action Space & Observation Space are according to an storage
-    - Rewards
-         -0.05 at each time step till the time
-         -10 for each crash
-    - Episode ends when all cars reach destination / max steps
-    - Obs. State:
-"""
-
-# core modules
-import random
 import math
 import curses
 import time
-
-# 3rd party modules
 import gym
-import numpy as np
-from gym import spaces
-from games.traffic_helper import *
+from traffic_helper import *
+import argparse
+import cv2
+from mss import mss
 
 
-def nPr(n, r):
-    f = math.factorial
-    return f(n) // f(n - r)
+def init_args(_parser):
+    _env_parser = _parser.add_argument_group('Traffic Junction task')
+    _env_parser.add_argument('--difficulty', type=str, default='hard', help="Difficulty level, easy|medium|hard")
+    _env_parser.add_argument('--dim', type=int, default=12, help="Dimension of box (i.e length of road) ")
+    _env_parser.add_argument('--vision', type=int, default=1, help="Vision of car")
+    _env_parser.add_argument('--add_rate_min', type=float, default=0.05, help="rate to add car(till curr_start)")
+    _env_parser.add_argument('--add_rate_max', type=float, default=0.2, help=" max rate at which to add car")
+    _env_parser.add_argument('--curr_start', type=float, default=0, help="start making harder after this many epochs")
+    _env_parser.add_argument('--curr_end', type=float, default=0, help="when to make the game hardest")
+    _env_parser.add_argument('--vocab_type', type=str, default='bool', help="Type of location vector, bool|scalar")
 
 
 class TrafficJunctionEnv(gym.Env):
-    # metadata = {'render.modes': ['human']}
+    def close(self):
+        self.vWriter.release()
+        curses.endwin()
 
-    def __init__(self, ):
-        self.__version__ = "0.0.1"
-
-        # TODO: better config handling
+    def __init__(self, _args):
+        self.bounding_box = {'top': 100, 'left': 100, 'width': 800, 'height': 600}
+        self.screenshot = mss()
+        video_name = 'video_out_put.mp4'
+        fps, fourcc = 20, cv2.VideoWriter_fourcc(*'mp4v')  # 'M','J','P','G')
+        self.vWriter = cv2.VideoWriter(video_name, fourcc, fps, (800, 600))
         self.OUTSIDE_CLASS = 0
         self.ROAD_CLASS = 1
         self.CAR_CLASS = 2
         self.TIMESTEP_PENALTY = -0.01
         self.CRASH_PENALTY = -10
-
-        self.episode_over = False
-        self.has_failed = 0
-
-    def init_curses(self):
-        self.stdscr = curses.initscr()
-        curses.start_color()
-        curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_RED, -1)
-        curses.init_pair(2, curses.COLOR_YELLOW, -1)
-        curses.init_pair(3, curses.COLOR_CYAN, -1)
-        curses.init_pair(4, curses.COLOR_GREEN, -1)
-        curses.init_pair(5, curses.COLOR_BLUE, -1)
-
-    def init_args(self, parser):
-        env = parser.add_argument_group('Traffic Junction task')
-        env.add_argument('--dim', type=int, default=12,
-                         help="Dimension of box (i.e length of road) ")
-        env.add_argument('--vision', type=int, default=1,
-                         help="Vision of car")
-        env.add_argument('--add_rate_min', type=float, default=0.05,
-                         help="rate at which to add car (till curr. start)")
-        env.add_argument('--add_rate_max', type=float, default=0.2,
-                         help=" max rate at which to add car")
-        env.add_argument('--curr_start', type=float, default=0,
-                         help="start making harder after this many epochs [0]")
-        env.add_argument('--curr_end', type=float, default=0,
-                         help="when to make the game hardest [0]")
-        env.add_argument('--difficulty', type=str, default='hard',
-                         help="Difficulty level, easy|medium|hard")
-        env.add_argument('--vocab_type', type=str, default='bool',
-                         help="Type of location vector to use, bool|scalar")
-
-    def multi_agent_init(self, args):
-        # General variables defining the environment : CONFIG
-        params = ['dim', 'vision', 'add_rate_min', 'add_rate_max', 'curr_start', 'curr_end',
-                  'difficulty', 'vocab_type']
-
-        for key in params:
-            setattr(self, key, getattr(args, key))
-
-        self.ncar = args.nagents
-        self.dims = dims = (self.dim, self.dim)
-        difficulty = args.difficulty
-        vision = args.vision
-
-        if difficulty in ['medium', 'easy']:
-            assert dims[0] % 2 == 0, 'Only even dimension supported for now.'
-
-            assert dims[0] >= 4 + vision, 'Min dim: 4 + vision'
-
-        if difficulty == 'hard':
-            assert dims[0] >= 9, 'Min dim: 9'
-            assert dims[0] % 3 == 0, 'Hard version works for multiple of 3. dim. only.'
-
-        # Add rate
-        self.exact_rate = self.add_rate = self.add_rate_min
-        self.epoch_last_update = 0
-
-        # Define what an storage can do -
-        # (0: GAS, 1: BRAKE) i.e. (0: Move 1-step, 1: STAY)
-        self.naction = 2
-        self.action_space = spaces.Discrete(self.naction)
-
-        # make no. of dims odd for easy case.
-        if difficulty == 'easy':
-            self.dims = list(dims)
-            for i in range(len(self.dims)):
-                self.dims[i] += 1
-
-        nroad = {'easy': 2,
-                 'medium': 4,
-                 'hard': 8}
-
-        dim_sum = dims[0] + dims[1]
-        base = {'easy': dim_sum,
-                'medium': 2 * dim_sum,
-                'hard': 4 * dim_sum}
-
-        self.npath = nPr(nroad[difficulty], 2)
-
-        # Setting max vocab size for 1-hot encoding
+        if not _args.no_render:
+            self.std_scr = curses.initscr()
+            curses.start_color()
+            curses.use_default_colors()
+            background = -1  # curses.COLOR_MAGENTA  # COLOR_BLACK, COLOR_WHITE
+            curses.init_pair(1, curses.COLOR_RED, background)
+            curses.init_pair(2, curses.COLOR_YELLOW, background)
+            curses.init_pair(3, curses.COLOR_CYAN, background)
+            curses.init_pair(4, curses.COLOR_GREEN, background)
+            curses.init_pair(5, curses.COLOR_BLUE, background)
+        self.n_car = _args.n_agents
+        self.dim = _args.dim
+        self.dims = (self.dim, self.dim)
+        self.vision = _args.vision
+        self.difficulty = _args.difficulty
+        if self.difficulty == 'easy':
+            assert self.dims[0] % 2 == 1  # no. of dims should odd for easy case.
+            assert self.dims[0] >= 4 + self.vision, 'Min dim: 4 + vision'
+        if self.difficulty == 'medium':
+            assert self.dims[0] % 2 == 0, 'Only even dimension supported for now.'
+            assert self.dims[0] >= 4 + self.vision, 'Min dim: 4 + vision'
+        if self.difficulty == 'hard':
+            assert self.dims[0] % 3 == 0, 'Hard version works for multiple of 3. dim. only.'
+            assert self.dims[0] >= 9, 'Min dim: 9'
+        self.n_action = 2  # Define what a storage can do - # (0: GAS, 1: BRAKE) i.e. (0: Move 1-step, 1: STAY)
+        self.action_space = gym.spaces.Discrete(self.n_action)
+        n_road = {'easy': 2, 'medium': 4, 'hard': 8}
+        self.n_path = math.factorial(n_road[self.difficulty]) // math.factorial(n_road[self.difficulty] - 2)
+        self.vocab_type = _args.vocab_type  # Setting max vocab size for 1-hot encoding
         if self.vocab_type == 'bool':
-            self.BASE = base[difficulty]
+            dim_sum = self.dims[0] + self.dims[1]
+            base = {'easy': dim_sum, 'medium': 2 * dim_sum, 'hard': 4 * dim_sum}
+            self.BASE = base[self.difficulty]
             self.OUTSIDE_CLASS += self.BASE
             self.CAR_CLASS += self.BASE
-            # car_type + base + outside + 0-index
-            self.vocab_size = 1 + self.BASE + 1 + 1
-            self.observation_space = spaces.Tuple((
-                spaces.Discrete(self.naction),
-                spaces.Discrete(self.npath),
-                spaces.MultiBinary((2 * vision + 1, 2 * vision + 1, self.vocab_size))))
+            self.vocab_size = 1 + self.BASE + 1 + 1  # car_type + base + outside + 0-index
+            self.observation_space = gym.spaces.Tuple((
+                gym.spaces.Discrete(self.n_action),
+                gym.spaces.Discrete(self.n_path),
+                gym.spaces.MultiBinary((2 * self.vision + 1, 2 * self.vision + 1, self.vocab_size))))
         else:
-            # r_i, (x,y), vocab = [road class + car]
-            self.vocab_size = 1 + 1
-
-            # Observation for each storage will be 4-tuple of (r_i, last_act, len(dims), vision * vision * vocab)
-            self.observation_space = spaces.Tuple((
-                spaces.Discrete(self.naction),
-                spaces.Discrete(self.npath),
-                spaces.MultiDiscrete(dims),
-                spaces.MultiBinary((2 * vision + 1, 2 * vision + 1, self.vocab_size))))
-            # Actual observation will be of the shape 1 * ncar * ((x,y) , (2v+1) * (2v+1) * vocab_size)
-
-        self._set_grid()
-
-        if difficulty == 'easy':
-            self._set_paths_easy()
-        else:
-            self._set_paths(difficulty)
-
-        return
-
-    def reset(self, epoch=None):
-        """
-        Reset the state of the environment and returns an initial observation.
-
-        Returns
-        -------
-        observation (object): the initial observation of the space.
-        """
-        self.episode_over = False
-        self.has_failed = 0
-
-        self.alive_mask = np.zeros(self.ncar)
-        self.wait = np.zeros(self.ncar)
-        self.cars_in_sys = 0
-
-        # Chosen path for each car:
-        self.chosen_path = [0] * self.ncar
-        # when dead => no route, must be masked by trainer.
-        self.route_id = [-1] * self.ncar
-
-        # self.cars = np.zeros(self.ncar)
-        # Current car to enter system
-        # self.car_i = 0
-        # Ids i.e. indexes
-        self.car_ids = np.arange(self.CAR_CLASS, self.CAR_CLASS + self.ncar)
-
-        # Starting loc of car: a place where everything is outside class
-        self.car_loc = np.zeros((self.ncar, len(self.dims)), dtype=int)
-        self.car_last_act = np.zeros(self.ncar, dtype=int)  # last act GAS when awake
-
-        self.car_route_loc = np.full(self.ncar, - 1)
-
-        # stat - like success ratio
-        self.stat = dict()
-
-        # set add rate according to the curriculum
-        epoch_range = (self.curr_end - self.curr_start)
-        add_rate_range = (self.add_rate_max - self.add_rate_min)
-        if epoch is not None and epoch_range > 0 and add_rate_range > 0 and epoch > self.epoch_last_update:
-            self.curriculum(epoch)
-            self.epoch_last_update = epoch
-
-        # Observation will be ncar * vision * vision ndarray
-        obs = self._get_obs()
-        return obs
-
-    def step(self, action):
-        """
-        The agents(car) take a step in the environment.
-
-        Parameters
-        ----------
-        action : shape - either ncar or ncar x 1
-
-        Returns
-        -------
-        obs, reward, episode_over, info : tuple
-            obs (object) :
-            reward (ncar x 1) : PENALTY for each timestep when in sys & CRASH PENALTY on crashes.
-            episode_over (bool) : Will be true when episode gets over.
-            info (dict) : diagnostic information useful for debugging.
-        """
-        if self.episode_over:
-            raise RuntimeError("Episode is done")
-
-        # Expected shape: either ncar or ncar x 1
-        action = np.array(action).squeeze()
-
-        assert np.all(action <= self.naction), "Actions should be in the range [0,naction)."
-
-        assert len(action) == self.ncar, "Action for each storage should be provided."
-
-        # No one is completed before taking action
-        self.is_completed = np.zeros(self.ncar)
-
-        for i, a in enumerate(action):
-            self._take_action(i, a)
-
-        self._add_cars()
-
-        obs = self._get_obs()
-        reward = self._get_reward()
-
-        debug = {'car_loc': self.car_loc,
-                 'alive_mask': np.copy(self.alive_mask),
-                 'wait': self.wait,
-                 'cars_in_sys': self.cars_in_sys,
-                 'is_completed': np.copy(self.is_completed)}
-
-        self.stat['success'] = 1 - self.has_failed
-        self.stat['add_rate'] = self.add_rate
-
-        return obs, reward, self.episode_over, debug
-
-    def render(self, mode='human', close=False):
-        symbol_road = '-'
-
-        grid = self.grid.copy().astype(object)
-        # grid = np.zeros(self.dims[0]*self.dims[1], dtypeobject).reshape(self.dims)
-        grid[grid != self.OUTSIDE_CLASS] = symbol_road
-        grid[grid == self.OUTSIDE_CLASS] = ''
-        self.stdscr.clear()
-        for i, p in enumerate(self.car_loc):
-            if self.car_last_act[i] == 0:  # GAS
-                if grid[p[0]][p[1]] != 0:
-                    grid[p[0]][p[1]] = str(grid[p[0]][p[1]]).replace(symbol_road, '') + '<>'
-                else:
-                    grid[p[0]][p[1]] = '<>'
-            else:  # BRAKE
-                if grid[p[0]][p[1]] != 0:
-                    grid[p[0]][p[1]] = str(grid[p[0]][p[1]]).replace(symbol_road, '') + '<b>'
-                else:
-                    grid[p[0]][p[1]] = '<b>'
-
-        for row_num, row in enumerate(grid):
-            for idx, item in enumerate(row):
-                if row_num == idx == 0:
-                    continue
-                if item != symbol_road:
-                    if '<>' in item and len(item) > 3:  # CRASH, one car accelerates
-                        self.stdscr.addstr(row_num, idx * 4, item.replace('b', '').center(3), curses.color_pair(2))
-                    elif '<>' in item:  # GAS
-                        self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(1))
-                    elif 'b' in item and len(item) > 3:  # CRASH
-                        self.stdscr.addstr(row_num, idx * 4, item.replace('b', '').center(3), curses.color_pair(2))
-                    elif 'b' in item:
-                        self.stdscr.addstr(row_num, idx * 4, item.replace('b', '').center(3), curses.color_pair(5))
-                    else:
-                        self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(2))
-                else:
-                    self.stdscr.addstr(row_num, idx * 4, symbol_road.center(3), curses.color_pair(4))
-
-        self.stdscr.addstr(len(grid), 0, '\n')
-        self.stdscr.refresh()
-        time.sleep(1)
-
-    def exit_render(self):
-        curses.endwin()
-
-    def seed(self):
-        return
-
-    def _set_grid(self):
-        self.grid = np.full(self.dims[0] * self.dims[1], self.OUTSIDE_CLASS, dtype=int).reshape(self.dims)
-        w, h = self.dims
-
-        # Mark the roads
+            self.vocab_size = 1 + 1  # r_i, (x,y), vocab = [road class + car]
+            # Observation for each storage will be 4-tuple of (last_act, r_i, len(dims), vision * vision * vocab)
+            self.observation_space = gym.spaces.Tuple((
+                gym.spaces.Discrete(self.n_action),
+                gym.spaces.Discrete(self.n_path),
+                gym.spaces.MultiDiscrete(list(self.dims)),  # changed tuple to list # by SY
+                gym.spaces.MultiBinary((2 * self.vision + 1, 2 * self.vision + 1, self.vocab_size))))
+            # Actual observation will be of the shape 1 * n_car * ((x,y) , (2v+1) * (2v+1) * vocab_size)
+        self.empty_grid = np.full(self.dims[0] * self.dims[1], self.OUTSIDE_CLASS, dtype=int).reshape(self.dims)
+        w, h = self.dims  # Mark the roads
         roads = get_road_blocks(w, h, self.difficulty)
         for road in roads:
-            self.grid[road] = self.ROAD_CLASS
+            self.empty_grid[road] = self.ROAD_CLASS
         if self.vocab_type == 'bool':
-            self.route_grid = self.grid.copy()
+            self.route_grid = self.empty_grid.copy()
             start = 0
             for road in roads:
-                sz = int(np.prod(self.grid[road].shape))
-                self.grid[road] = np.arange(start, start + sz).reshape(self.grid[road].shape)
+                sz = int(np.prod(self.empty_grid[road].shape))
+                self.empty_grid[road] = np.arange(start, start + sz).reshape(self.empty_grid[road].shape)
                 start += sz
+        self.empty_grid = np.pad(self.empty_grid, self.vision, 'constant', constant_values=self.OUTSIDE_CLASS)
+        self.empty_grid_onehot = self._onehot_initialization(self.empty_grid)
+        self.exact_rate = self.add_rate = self.add_rate_min = _args.add_rate_min
+        self.add_rate_max = _args.add_rate_max
+        self.curr_start, self.curr_end, self.epoch_last_update = _args.curr_start, _args.curr_end, 0
+        if self.difficulty == 'easy':
+            h, w = self.dims
+            self.routes = {'TOP': [], 'LEFT': []}
+            full = [(i, w // 2) for i in range(h)]  # 0 refers to UP to DOWN, type 0
+            self.routes['TOP'].append(np.array([*full]))
+            full = [(h // 2, i) for i in range(w)]  # 1 refers to LEFT to RIGHT, type 0
+            self.routes['LEFT'].append(np.array([*full]))
+            self.routes = list(self.routes.values())
+        else:
+            route_grid = self.route_grid if self.vocab_type == 'bool' else self.empty_grid
+            self.routes = get_routes(self.dims, route_grid, self.difficulty)
+            paths = []  # Convert/unroll routes which is a list of list of paths
+            for r in self.routes:
+                for p in r:
+                    paths.append(p)
+            assert len(paths) == self.n_path  # Check number of paths
+            assert self._unittest_path(paths)  # Test all paths
+        self.episode_over, self.has_failed = False, 0
+        self.alive_mask, self.wait, self.cars_in_sys = None, None, None
+        self.chosen_path, self.route_id = None, None
+        self.car_ids, self.car_loc, self.car_last_act, self.car_route_loc = None, None, None, None
+        self.stat = None
+        self.is_completed = None
+        return
 
-        # Padding for vision
-        self.pad_grid = np.pad(self.grid, self.vision, 'constant', constant_values=self.OUTSIDE_CLASS)
-
-        self.empty_bool_base_grid = self._onehot_initialization(self.pad_grid)
-
-    def _get_obs(self):
-        h, w = self.dims
-        self.bool_base_grid = self.empty_bool_base_grid.copy()
-
-        # Mark cars' location in Bool grid
-        for i, p in enumerate(self.car_loc):
-            self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.CAR_CLASS] += 1
-
-        # remove the outside class.
-        if self.vocab_type == 'scalar':
-            self.bool_base_grid = self.bool_base_grid[:, :, 1:]
-
-        obs = []
-        for i, p in enumerate(self.car_loc):
-            # most recent action
-            act = self.car_last_act[i] / (self.naction - 1)
-
-            # route id
-            r_i = self.route_id[i] / (self.npath - 1)
-
-            # loc
-            p_norm = p / (h - 1, w - 1)
-
-            # vision square
-            slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)
-            slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
-            v_sq = self.bool_base_grid[slice_y, slice_x]
-
-            # when dead, all obs are 0. But should be masked by trainer.
-            if self.alive_mask[i] == 0:
-                act = np.zeros_like(act)
-                r_i = np.zeros_like(r_i)
-                p_norm = np.zeros_like(p_norm)
-                v_sq = np.zeros_like(v_sq)
-
-            if self.vocab_type == 'bool':
-                o = tuple((act, r_i, v_sq))
-            else:
-                o = tuple((act, r_i, p_norm, v_sq))
-            obs.append(o)
-
-        obs = tuple(obs)
-
-        return obs
-
-    def _add_cars(self):
-        for r_i, routes in enumerate(self.routes):
-            if self.cars_in_sys >= self.ncar:
-                return
-
-            # Add car to system and set on path
-            if np.random.uniform() <= self.add_rate:
-                # chose dead car on random
-                idx = self._choose_dead()
-                # make it alive
-                self.alive_mask[idx] = 1
-
-                # choose path randomly & set it
-                p_i = np.random.choice(len(routes))
-                # make sure all self.routes have equal len/ same no. of routes
-                self.route_id[idx] = p_i + r_i * len(routes)
-                self.chosen_path[idx] = routes[p_i]
-
-                # set its start loc
-                self.car_route_loc[idx] = 0
-                self.car_loc[idx] = routes[p_i][0]
-
-                # increase count
-                self.cars_in_sys += 1
-
-    def _set_paths_easy(self):
-        h, w = self.dims
-        self.routes = {
-            'TOP': [],
-            'LEFT': []
-        }
-
-        # 0 refers to UP to DOWN, type 0
-        full = [(i, w // 2) for i in range(h)]
-        self.routes['TOP'].append(np.array([*full]))
-
-        # 1 refers to LEFT to RIGHT, type 0
-        full = [(h // 2, i) for i in range(w)]
-        self.routes['LEFT'].append(np.array([*full]))
-
-        self.routes = list(self.routes.values())
-
-    def _set_paths_medium_old(self):
-        h, w = self.dims
-        self.routes = {
-            'TOP': [],
-            'LEFT': [],
-            'RIGHT': [],
-            'DOWN': []
-        }
-
-        # type 0 paths: go straight on junction
-        # type 1 paths: take right on junction
-        # type 2 paths: take left on junction
-
-        # 0 refers to UP to DOWN, type 0
-        full = [(i, w // 2 - 1) for i in range(h)]
-        self.routes['TOP'].append(np.array([*full]))
-
-        # 1 refers to UP to LEFT, type 1
-        first_half = full[:h // 2]
-        second_half = [(h // 2 - 1, i) for i in range(w // 2 - 2, -1, -1)]
-        self.routes['TOP'].append(np.array([*first_half, *second_half]))
-
-        # 2 refers to UP to RIGHT, type 2
-        second_half = [(h // 2, i) for i in range(w // 2 - 1, w)]
-        self.routes['TOP'].append(np.array([*first_half, *second_half]))
-
-        # 3 refers to LEFT to RIGHT, type 0
-        full = [(h // 2, i) for i in range(w)]
-        self.routes['LEFT'].append(np.array([*full]))
-
-        # 4 refers to LEFT to DOWN, type 1
-        first_half = full[:w // 2]
-        second_half = [(i, w // 2 - 1) for i in range(h // 2 + 1, h)]
-        self.routes['LEFT'].append(np.array([*first_half, *second_half]))
-
-        # 5 refers to LEFT to UP, type 2
-        second_half = [(i, w // 2) for i in range(h // 2, -1, -1)]
-        self.routes['LEFT'].append(np.array([*first_half, *second_half]))
-
-        # 6 refers to DOWN to UP, type 0
-        full = [(i, w // 2) for i in range(h - 1, -1, -1)]
-        self.routes['DOWN'].append(np.array([*full]))
-
-        # 7 refers to DOWN to RIGHT, type 1
-        first_half = full[:h // 2]
-        second_half = [(h // 2, i) for i in range(w // 2 + 1, w)]
-        self.routes['DOWN'].append(np.array([*first_half, *second_half]))
-
-        # 8 refers to DOWN to LEFT, type 2
-        second_half = [(h // 2 - 1, i) for i in range(w // 2, -1, -1)]
-        self.routes['DOWN'].append(np.array([*first_half, *second_half]))
-
-        # 9 refers to RIGHT to LEFT, type 0
-        full = [(h // 2 - 1, i) for i in range(w - 1, -1, -1)]
-        self.routes['RIGHT'].append(np.array([*full]))
-
-        # 10 refers to RIGHT to UP, type 1
-        first_half = full[:w // 2]
-        second_half = [(i, w // 2) for i in range(h // 2 - 2, -1, -1)]
-        self.routes['RIGHT'].append(np.array([*first_half, *second_half]))
-
-        # 11 refers to RIGHT to DOWN, type 2
-        second_half = [(i, w // 2 - 1) for i in range(h // 2 - 1, h)]
-        self.routes['RIGHT'].append(np.array([*first_half, *second_half]))
-
-        # PATHS_i: 0 to 11
-        # 0 refers to UP to down,
-        # 1 refers to UP to left,
-        # 2 refers to UP to right,
-        # 3 refers to LEFT to right,
-        # 4 refers to LEFT to down,
-        # 5 refers to LEFT to up,
-        # 6 refers to DOWN to up,
-        # 7 refers to DOWN to right,
-        # 8 refers to DOWN to left,
-        # 9 refers to RIGHT to left,
-        # 10 refers to RIGHT to up,
-        # 11 refers to RIGHT to down,
-
-        # Convert to routes dict to list of paths
-        paths = []
-        for r in self.routes.values():
-            for p in r:
-                paths.append(p)
-
-        # Check number of paths
-        # assert len(paths) == self.npath
-
-        # Test all paths
-        assert self._unittest_path(paths)
-
-    def _set_paths(self, difficulty):
-        route_grid = self.route_grid if self.vocab_type == 'bool' else self.grid
-        self.routes = get_routes(self.dims, route_grid, difficulty)
-
-        # Convert/unroll routes which is a list of list of paths
-        paths = []
-        for r in self.routes:
-            for p in r:
-                paths.append(p)
-
-        # Check number of paths
-        assert len(paths) == self.npath
-
-        # Test all paths
-        assert self._unittest_path(paths)
-
-    def _unittest_path(self, paths):
+    @staticmethod
+    def _unittest_path(paths):
         for i, p in enumerate(paths[:-1]):
             next_dif = p - np.row_stack([p[1:], p[-1]])
             next_dif = np.abs(next_dif[:-1])
@@ -530,88 +141,214 @@ class TrafficJunctionEnv(gym.Env):
                 return False
         return True
 
+    def _onehot_initialization(self, a):
+        if self.vocab_type == 'bool':
+            n_cols = self.vocab_size
+        else:
+            n_cols = self.vocab_size + 1  # 1 is for outside class which will be removed later.
+        out = np.zeros(a.shape + (n_cols,), dtype=int)
+        grid = np.ogrid[tuple(map(slice, a.shape))]
+        grid.insert(2, a)
+        out[tuple(grid)] = 1
+        return out
+
+    def reset(self, *, seed=None, options=None):  # self, epoch=None):
+        self.episode_over, self.has_failed = False, 0
+        self.alive_mask, self.wait, self.cars_in_sys = np.zeros(self.n_car), np.zeros(self.n_car), 0
+        self.chosen_path = [0] * self.n_car  # Chosen path for each car
+        self.route_id = [-1] * self.n_car  # when dead => no route, must be masked by trainer.
+        self.car_ids = np.arange(self.CAR_CLASS, self.CAR_CLASS + self.n_car)  # Current car to enter system
+        # Starting loc of car: a place where everything is outside class
+        self.car_loc = np.zeros((self.n_car, len(self.dims)), dtype=int)
+        self.car_last_act = np.zeros(self.n_car, dtype=int)  # last act GAS when awake
+        self.car_route_loc = np.full(self.n_car, -1)
+        self.stat = dict()  # stat - like success ratio
+        # # set add rate according to the curriculum
+        # epoch_range = (self.curr_end - self.curr_start)
+        # add_rate_range = (self.add_rate_max - self.add_rate_min)
+        # if epoch is not None and epoch_range > 0 and add_rate_range > 0 and epoch > self.epoch_last_update:
+        #     self.curriculum(epoch)
+        #     self.epoch_last_update = epoch
+        # Observation will be n_car * vision * vision ndarray
+        return self._get_obs(), {}
+
+    # def curriculum(self, epoch):
+    #     step_size = 0.01
+    #     step = (self.add_rate_max - self.add_rate_min) / (self.curr_end - self.curr_start)
+    #     if self.curr_start <= epoch < self.curr_end:
+    #         self.exact_rate = self.exact_rate + step
+    #         self.add_rate = step_size * (self.exact_rate // step_size)
+
+    def step(self, action):
+        """ action : shape - either n_car or n_car x 1
+            reward (n_car x 1) : PENALTY for each timestep when in sys & CRASH PENALTY on crashes.
+            episode_over (bool) : Will be true when episode gets over."""
+        if self.episode_over:
+            raise RuntimeError("Episode is done")
+        assert np.all(action <= self.n_action), "Actions should be in the range [0,n_action)."
+        assert len(action) == self.n_car, "Action for each storage should be provided."
+        self.is_completed = np.zeros(self.n_car)  # No one is completed before taking action
+        for i, a in enumerate(action):
+            self._take_action(i, a)
+        self._add_cars()
+        debug = {'alive_mask': np.copy(self.alive_mask),
+                 'wait': self.wait,
+                 'cars_in_sys': self.cars_in_sys,
+                 'car_loc': self.car_loc,
+                 'is_completed': np.copy(self.is_completed)}
+        self.stat['success'] = 1 - self.has_failed
+        self.stat['add_rate'] = self.add_rate
+        return self._get_obs(), self._get_reward(), self.episode_over, _, debug
+
+    def _get_obs(self):
+        h, w = self.dims
+        grid = self.empty_grid_onehot.copy()
+        for i, p in enumerate(self.car_loc):  # Mark cars' location in Bool grid
+            grid[p[0] + self.vision, p[1] + self.vision, self.CAR_CLASS] += 1
+        if self.vocab_type == 'scalar':  # remove the outside class.
+            grid = grid[:, :, 1:]
+        _obs = []
+        for i, p in enumerate(self.car_loc):
+            act = self.car_last_act[i] / (self.n_action - 1)  # most recent action
+            r_i = self.route_id[i] / (self.n_path - 1)  # route id
+            p_norm = p / (h - 1, w - 1)  # loc
+            slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)  # vision square
+            slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
+            v_sq = grid[slice_y, slice_x]
+            # when dead, all obs are 0. But should be masked by trainer.
+            if self.alive_mask[i] == 0:
+                act = np.zeros_like(act)
+                r_i = np.zeros_like(r_i)
+                p_norm = np.zeros_like(p_norm)
+                v_sq = np.zeros_like(v_sq)
+            if self.vocab_type == 'bool':
+                o = tuple((act, r_i, v_sq))
+            else:
+                o = tuple((act, r_i, p_norm, v_sq))
+            _obs.append(o)
+        return tuple(_obs)
+
+    def _add_cars(self):
+        for r_i, routes in enumerate(self.routes):
+            if self.cars_in_sys >= self.n_car:
+                return
+            if np.random.uniform() <= self.add_rate:  # Add car to system and set on path
+                car_idx = np.arange(len(self.alive_mask))  # chose dead car on random
+                idx = np.random.choice(car_idx[self.alive_mask == 0])
+                self.alive_mask[idx] = 1  # make it alive
+                p_i = np.random.choice(len(routes))  # choose path randomly & set it
+                # make sure all self.routes have equal len/ same no. of routes
+                self.route_id[idx] = p_i + r_i * len(routes)
+                self.chosen_path[idx] = routes[p_i]
+                self.car_route_loc[idx] = 0  # set its start loc
+                self.car_loc[idx] = routes[p_i][0]
+                self.cars_in_sys += 1  # increase count
+
     def _take_action(self, idx, act):
-        # non-active car
-        if self.alive_mask[idx] == 0:
+        if self.alive_mask[idx] == 0:  # non-active car
             return
-
-        # add wait time for active cars
-        self.wait[idx] += 1
-
-        # action BRAKE i.e STAY
-        if act == 1:
+        self.wait[idx] += 1  # add wait time for active cars
+        if act == 1:  # action BRAKE such as STAY
             self.car_last_act[idx] = 1
             return
-
-        # GAS or move
-        if act == 0:
+        if act == 0:  # GAS or move
+            self.car_last_act[idx] = 0  # Change last act for color
             prev = self.car_route_loc[idx]
             self.car_route_loc[idx] += 1
             curr = self.car_route_loc[idx]
-
             # car/storage has reached end of its path
             if curr == len(self.chosen_path[idx]):
-                self.cars_in_sys -= 1
                 self.alive_mask[idx] = 0
                 self.wait[idx] = 0
-
-                # put it at dead loc
-                self.car_loc[idx] = np.zeros(len(self.dims), dtype=int)
+                self.cars_in_sys -= 1
+                self.car_loc[idx] = np.zeros(len(self.dims), dtype=int)  # put it at dead loc
                 self.is_completed[idx] = 1
                 return
-
             elif curr > len(self.chosen_path[idx]):
                 print(curr)
-                raise RuntimeError("Out of boud car path")
-
+                raise RuntimeError("Out of bound car path")
             prev = self.chosen_path[idx][prev]
             curr = self.chosen_path[idx][curr]
-
             # assert abs(curr[0] - prev[0]) + abs(curr[1] - prev[1]) == 1 or curr_path = 0
             self.car_loc[idx] = curr
 
-            # Change last act for color:
-            self.car_last_act[idx] = 0
-
     def _get_reward(self):
-        reward = np.full(self.ncar, self.TIMESTEP_PENALTY) * self.wait
-
+        _reward = np.full(self.n_car, self.TIMESTEP_PENALTY) * self.wait
         for i, l in enumerate(self.car_loc):
-            if (len(np.where(np.all(self.car_loc[:i] == l, axis=1))[0]) or \
-                len(np.where(np.all(self.car_loc[i + 1:] == l, axis=1))[0])) and l.any():
-                reward[i] += self.CRASH_PENALTY
+            if (len(np.where(np.all(self.car_loc[:i] == l, axis=1))[0]) or len(
+                    np.where(np.all(self.car_loc[i + 1:] == l, axis=1))[0])) and l.any():
+                _reward[i] += self.CRASH_PENALTY
                 self.has_failed = 1
+        return self.alive_mask * _reward
 
-        reward = self.alive_mask * reward
-        return reward
+    def render(self, mode='human', close=False):
+        symbol_road, symbol_car, symbol_break = '--', '[]', '[b]'
+        grid = self.route_grid.copy().astype(object)
+        grid[grid != self.OUTSIDE_CLASS] = symbol_road
+        grid[grid == self.OUTSIDE_CLASS] = ''
+        self.std_scr.clear()
+        for i, p in enumerate(self.car_loc):
+            if self.car_last_act[i] == 0:  # GAS
+                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]).replace(symbol_road, '') + symbol_car
+            else:  # BRAKE
+                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]).replace(symbol_road, '') + symbol_break
+        _vspace, _space, _center = 2, 4, 4
+        for row_num, row in enumerate(grid):
+            for idx, item in enumerate(row):
+                if row_num == idx == 0:  # skip top left item
+                    continue
+                if item != symbol_road:
+                    if symbol_car in item and len(item) > 3:  # CRASH, one car accelerates
+                        self.std_scr.addstr(row_num, idx*_space,
+                                            item.replace('b', '').center(_center), curses.color_pair(2))
+                    elif symbol_car in item:  # GAS
+                        self.std_scr.addstr(row_num, idx*_space,
+                                            item.replace('b', '').center(_center), curses.color_pair(5))
+                    elif 'b' in item and len(item) > 3:  # CRASH
+                        self.std_scr.addstr(row_num, idx*_space,
+                                            item.replace('b', '').center(_center), curses.color_pair(2))
+                    elif 'b' in item:
+                        self.std_scr.addstr(row_num, idx*_space,
+                                            item.replace('b', '').center(_center), curses.color_pair(1))
+                    else:
+                        self.std_scr.addstr(row_num, idx*_space,
+                                            item.center(_center), curses.color_pair(2))
+                else:
+                    self.std_scr.addstr(row_num, idx * _space,
+                                        symbol_road.center(_center), curses.color_pair(4))
+        self.std_scr.addstr(len(grid), 0, '\n')
+        self.std_scr.refresh()
+        time.sleep(.1)
+        frame = self.screenshot.grab(self.bounding_box)
+        frame = np.array(frame)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # without this video will be error
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # change color back...
+        self.vWriter.write(frame)
 
-    def _onehot_initialization(self, a):
-        if self.vocab_type == 'bool':
-            ncols = self.vocab_size
-        else:
-            ncols = self.vocab_size + 1  # 1 is for outside class which will be removed later.
-        out = np.zeros(a.shape + (ncols,), dtype=int)
-        out[self._all_idx(a, axis=2)] = 1
-        return out
 
-    def _all_idx(self, idx, axis):
-        grid = np.ogrid[tuple(map(slice, idx.shape))]
-        grid.insert(axis, idx)
-        return tuple(grid)
-
-    def reward_terminal(self):
-        return np.zeros_like(self._get_reward())
-
-    def _choose_dead(self):
-        # all idx
-        car_idx = np.arange(len(self.alive_mask))
-        # random choice of idx from dead ones.
-        return np.random.choice(car_idx[self.alive_mask == 0])
-
-    def curriculum(self, epoch):
-        step_size = 0.01
-        step = (self.add_rate_max - self.add_rate_min) / (self.curr_end - self.curr_start)
-
-        if self.curr_start <= epoch < self.curr_end:
-            self.exact_rate = self.exact_rate + step
-            self.add_rate = step_size * (self.exact_rate // step_size)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser('Example GCCNet environment random storage')
+    parser.add_argument('--n_agents', type=int, default=16, help="Number of agents")
+    parser.add_argument('--n_predator', type=int, default=8, help="Number of agents")
+    parser.add_argument('--no-render', action='store_true', default=False, help='no render flag')
+    init_args(parser)
+    args = parser.parse_args()
+    env = TrafficJunctionEnv(args)
+    episodes = 0
+    try:
+        while episodes < 5:
+            obs, info = env.reset()
+            done = False
+            while not done:
+                actions = []
+                for _ in range(args.n_agents):
+                    actions.append(env.action_space.sample())
+                actions = np.array(actions)
+                actions = actions.squeeze()
+                obs, reward, done, _, info = env.step(actions)
+                # if not args.no_render:
+                env.render()
+            episodes += 1
+        env.close()
+    except KeyboardInterrupt:
+        env.close()
