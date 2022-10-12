@@ -1,4 +1,5 @@
 import argparse
+import json
 import numpy as np
 import random
 import os
@@ -67,7 +68,7 @@ def main():
     parser.add_argument('--max-stepsM', default='10', help='number of environment steps to train (default: 10M)')
     parser.add_argument('--stg-mode', default='', help='storage to use: deque | ')  # storage
     parser.add_argument('--memo-size', type=int, default=1, help='size of memory (default: 5)')
-    parser.add_argument('--alg-mode', default='PTa2c1', help='algo to use: TFa2c1 | PTa2c1 | PTppo')  # algorithm
+    parser.add_argument('--alg-mode', default='PTa2c1', help='algo to use: TFa2c1 | PTa2c1 | PPO')  # algorithm
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor for rewards (default: 0.99)')
     parser.add_argument('--loss-value-weight', type=float, default=0.5, help='value loss coefficient (default: 0.5)')
     parser.add_argument('--loss-entropy-weight', type=float, default=0.01, help='entropy coefficient (default: 0.01)')
@@ -90,8 +91,7 @@ def main():
     parser.add_argument('--width', type=int, default=-1, help='width for render (default: 600)')
     parser.add_argument('--height', type=int, default=-1, help='height for render (default: 400)')
     parser.add_argument('--wandb', action='store_false', default=True, help='wandb flag')
-    # use importlib to add games argument to parser
-
+    parser.add_argument('--env-args', type=json.loads, default='{}', help='arguments for customized games')
     args = parser.parse_args()
     args.exp_dir = 'results/' + args.env_name + '_' + args.env_mode \
                    + '_' + str(args.env_nums) + '_' + str(args.stack_num) + '_' + str(args.roll_num) \

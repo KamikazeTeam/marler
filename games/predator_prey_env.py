@@ -5,43 +5,47 @@ import numpy as np
 import argparse
 
 
-def init_args(_parser):
-    _env_parser = _parser.add_argument_group('Prey Predator task')
-    _env_parser.add_argument('--n_prey', type=int, default=1, help="Total number of preys in play")
-    _env_parser.add_argument('--dim', type=int, default=15, help="Dimension of box")
-    _env_parser.add_argument('--vision', type=int, default=2, help="Vision of predator")
-    _env_parser.add_argument('--n_action', type=int, default=5, help="number of actions")
-    _env_parser.add_argument('--enemy_comm', action="store_true", default=False, help="Whether prey can communicate.")
-    _parser.add_argument('--mode', default='mixed', type=str, help='cooperative|competitive|mixed (default: mixed)')
+def init_args(parser):
+    parser.add_argument('--n_predator', type=int, default=8, help="Number of agents")
+    parser.add_argument('--n_prey', type=int, default=1, help="Total number of preys in play")
+    parser.add_argument('--dim', type=int, default=15, help="Dimension of box")
+    parser.add_argument('--vision', type=int, default=2, help="Vision of predator")
+    parser.add_argument('--n_action', type=int, default=5, help="number of actions")
+    parser.add_argument('--enemy_comm', action="store_true", default=False, help="Whether prey can communicate.")
+    parser.add_argument('--mode', default='mixed', type=str, help='cooperative|competitive|mixed (default: mixed)')
 
 
 class PredatorPreyEnv(gym.Env):
     def close(self):
         curses.endwin()
 
-    def __init__(self, _args):
+    def __init__(self, args, render):
+        self.n_predator = 18
+        self.n_prey = 1
+        self.dim = 15
+        self.vision = 2
+        self.n_action = 5
+        self.enemy_comm = 0
+        self.mode = 'cooperative'
+        for key in args:
+            setattr(self, key, args[key])  # getattr(args, key))
         self.OUTSIDE_CLASS = 1
         self.PREDATOR_CLASS = 3
         self.PREY_CLASS = 2
         self.TIMESTEP_PENALTY = -0.05
         self.PREY_REWARD = 0
         self.POS_PREY_REWARD = 0.05
-        self.std_scr = curses.initscr()
-        curses.start_color()
-        curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_RED, -1)
-        curses.init_pair(2, curses.COLOR_YELLOW, -1)
-        curses.init_pair(3, curses.COLOR_CYAN, -1)
-        curses.init_pair(4, curses.COLOR_GREEN, -1)
-        self.n_predator = _args.n_predator
-        self.n_prey = _args.n_prey
-        self.dims = (_args.dim, _args.dim)
-        self.vision = _args.vision
-        self.n_action = _args.n_action
-        self.enemy_comm = _args.enemy_comm
-        self.mode = _args.mode
+        if render:
+            self.std_scr = curses.initscr()
+            curses.start_color()
+            curses.use_default_colors()
+            curses.init_pair(1, curses.COLOR_RED, -1)
+            curses.init_pair(2, curses.COLOR_YELLOW, -1)
+            curses.init_pair(3, curses.COLOR_CYAN, -1)
+            curses.init_pair(4, curses.COLOR_GREEN, -1)
         # (0: UP, 1: RIGHT, 2: DOWN, 3: LEFT, 4: STAY)
-        self.action_space = gym.spaces.MultiDiscrete([_args.n_action])
+        self.dims = (self.dim, self.dim)
+        self.action_space = gym.spaces.MultiDiscrete([self.n_action])
         self.BASE = (self.dims[0] * self.dims[1])
         self.OUTSIDE_CLASS += self.BASE
         self.PREDATOR_CLASS += self.BASE
@@ -50,9 +54,9 @@ class PredatorPreyEnv(gym.Env):
         self.vocab_size = 1 + 1 + self.BASE + 1 + 1
         #          predator + prey + grid + outside
         # Observation for each storage will be vision * vision ndarray
-        self.observation_space = gym.spaces.Box(low=0, high=1,
+        self.observation_space = gym.spaces.Box(low=0, high=255,  # 1,
                                                 shape=(self.vocab_size, (2 * self.vision) + 1, (2 * self.vision) + 1),
-                                                dtype=int)
+                                                dtype=np.uint8)  # int)
         # Actual observation will be of the shape 1 * n_predator * (2v+1) * (2v+1) * vocab_size
         self.episode_over = False
         self.empty_grid = np.arange(self.BASE).reshape(self.dims)
@@ -64,6 +68,7 @@ class PredatorPreyEnv(gym.Env):
         self.stat = dict()  # stat - like success ratio
         self.predator_loc, self.prey_loc = None, None
         self.reached_prey = None
+        self.n_agents = 16
         return
 
     def _onehot_initialization(self, a):
@@ -81,7 +86,10 @@ class PredatorPreyEnv(gym.Env):
         self.predator_loc, self.prey_loc = loc[:self.n_predator], loc[self.n_predator:]
         self.reached_prey = np.zeros(self.n_predator)
         # Observation will be n_predator * vision * vision ndarray
-        return self._get_obs(), {}
+        obs = self._get_obs()
+        print(obs.shape)
+        exit()
+        return obs, {}
 
     def step(self, action):
         """ action : list/ndarray of length m, containing the indexes of what lever each 'm' chosen agents pulled.
@@ -95,7 +103,7 @@ class PredatorPreyEnv(gym.Env):
             self._take_action(i, a)
         self.episode_over = False
         debug = {'predator_loc': self.predator_loc, 'prey_loc': self.prey_loc}
-        return self._get_obs(), self._get_reward(), self.episode_over, _, debug
+        return self._get_obs(), self._get_reward(), self.episode_over, False, debug
 
     def _get_obs(self):
         grid = self.empty_grid_onehot.copy()
@@ -207,10 +215,8 @@ class PredatorPreyEnv(gym.Env):
         time.sleep(.31)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Example GCCNet environment random storage')
-    parser.add_argument('--n_agents', type=int, default=16, help="Number of agents")
-    parser.add_argument('--n_predator', type=int, default=8, help="Number of agents")
+def main():
+    parser = argparse.ArgumentParser()
     init_args(parser)
     args = parser.parse_args()
     env = PredatorPreyEnv(args)
@@ -221,7 +227,7 @@ if __name__ == '__main__':
             done = False
             while not done:
                 actions = []
-                for _ in range(args.n_agents):
+                for _ in range(env.n_agents):
                     actions.append(env.action_space.sample())
                 actions = np.array(actions)
                 actions = actions.squeeze()
@@ -231,3 +237,7 @@ if __name__ == '__main__':
         env.close()
     except KeyboardInterrupt:
         env.close()
+
+
+if __name__ == '__main__':
+    main()

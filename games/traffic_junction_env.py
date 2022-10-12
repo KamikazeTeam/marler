@@ -8,16 +8,16 @@ import cv2
 from mss import mss
 
 
-def init_args(_parser):
-    _env_parser = _parser.add_argument_group('Traffic Junction task')
-    _env_parser.add_argument('--difficulty', type=str, default='hard', help="Difficulty level, easy|medium|hard")
-    _env_parser.add_argument('--dim', type=int, default=12, help="Dimension of box (i.e length of road) ")
-    _env_parser.add_argument('--vision', type=int, default=1, help="Vision of car")
-    _env_parser.add_argument('--add_rate_min', type=float, default=0.05, help="rate to add car(till curr_start)")
-    _env_parser.add_argument('--add_rate_max', type=float, default=0.2, help=" max rate at which to add car")
-    _env_parser.add_argument('--curr_start', type=float, default=0, help="start making harder after this many epochs")
-    _env_parser.add_argument('--curr_end', type=float, default=0, help="when to make the game hardest")
-    _env_parser.add_argument('--vocab_type', type=str, default='bool', help="Type of location vector, bool|scalar")
+def init_args(parser):
+    parser.add_argument('--n_car', type=int, default=16, help="max number of cars")
+    parser.add_argument('--difficulty', type=str, default='hard', help="Difficulty level, easy|medium|hard")
+    parser.add_argument('--dim', type=int, default=12, help="Dimension of box (i.e length of road) ")
+    parser.add_argument('--vision', type=int, default=1, help="Vision of car")
+    parser.add_argument('--add_rate_min', type=float, default=0.05, help="rate to add car(till curr_start)")
+    parser.add_argument('--add_rate_max', type=float, default=0.2, help=" max rate at which to add car")
+    parser.add_argument('--curr_start', type=float, default=0, help="start making harder after this many epochs")
+    parser.add_argument('--curr_end', type=float, default=0, help="when to make the game hardest")
+    parser.add_argument('--vocab_type', type=str, default='bool', help="Type of location vector, bool|scalar")
 
 
 class TrafficJunctionEnv(gym.Env):
@@ -25,18 +25,28 @@ class TrafficJunctionEnv(gym.Env):
         self.vWriter.release()
         curses.endwin()
 
-    def __init__(self, _args):
-        self.bounding_box = {'top': 100, 'left': 100, 'width': 800, 'height': 600}
-        self.screenshot = mss()
-        video_name = 'video_out_put.mp4'
-        fps, fourcc = 20, cv2.VideoWriter_fourcc(*'mp4v')  # 'M','J','P','G')
-        self.vWriter = cv2.VideoWriter(video_name, fourcc, fps, (800, 600))
+    def __init__(self, args, render):
+        self.n_car = 16
+        self.difficulty = 'hard'
+        self.dim = 12
+        self.vision = 1
+        self.exact_rate = self.add_rate = self.add_rate_min = 0.05
+        self.add_rate_max = 0.2
+        self.curr_start, self.curr_end, self.epoch_last_update = 0, 0, 0
+        self.vocab_type = 'bool'  # Setting max vocab size for 1-hot encoding
+        for key in args:
+            setattr(self, key, getattr(args, key))
         self.OUTSIDE_CLASS = 0
         self.ROAD_CLASS = 1
         self.CAR_CLASS = 2
         self.TIMESTEP_PENALTY = -0.01
         self.CRASH_PENALTY = -10
-        if not _args.no_render:
+        if render:
+            self.bounding_box = {'top': 100, 'left': 100, 'width': 800, 'height': 600}
+            self.screenshot = mss()
+            video_name = 'video_out_put.mp4'
+            fps, fourcc = 20, cv2.VideoWriter_fourcc(*'mp4v')  # 'M','J','P','G')
+            self.vWriter = cv2.VideoWriter(video_name, fourcc, fps, (800, 600))
             self.std_scr = curses.initscr()
             curses.start_color()
             curses.use_default_colors()
@@ -46,11 +56,7 @@ class TrafficJunctionEnv(gym.Env):
             curses.init_pair(3, curses.COLOR_CYAN, background)
             curses.init_pair(4, curses.COLOR_GREEN, background)
             curses.init_pair(5, curses.COLOR_BLUE, background)
-        self.n_car = _args.n_agents
-        self.dim = _args.dim
         self.dims = (self.dim, self.dim)
-        self.vision = _args.vision
-        self.difficulty = _args.difficulty
         if self.difficulty == 'easy':
             assert self.dims[0] % 2 == 1  # no. of dims should odd for easy case.
             assert self.dims[0] >= 4 + self.vision, 'Min dim: 4 + vision'
@@ -64,7 +70,6 @@ class TrafficJunctionEnv(gym.Env):
         self.action_space = gym.spaces.Discrete(self.n_action)
         n_road = {'easy': 2, 'medium': 4, 'hard': 8}
         self.n_path = math.factorial(n_road[self.difficulty]) // math.factorial(n_road[self.difficulty] - 2)
-        self.vocab_type = _args.vocab_type  # Setting max vocab size for 1-hot encoding
         if self.vocab_type == 'bool':
             dim_sum = self.dims[0] + self.dims[1]
             base = {'easy': dim_sum, 'medium': 2 * dim_sum, 'hard': 4 * dim_sum}
@@ -99,9 +104,6 @@ class TrafficJunctionEnv(gym.Env):
                 start += sz
         self.empty_grid = np.pad(self.empty_grid, self.vision, 'constant', constant_values=self.OUTSIDE_CLASS)
         self.empty_grid_onehot = self._onehot_initialization(self.empty_grid)
-        self.exact_rate = self.add_rate = self.add_rate_min = _args.add_rate_min
-        self.add_rate_max = _args.add_rate_max
-        self.curr_start, self.curr_end, self.epoch_last_update = _args.curr_start, _args.curr_end, 0
         if self.difficulty == 'easy':
             h, w = self.dims
             self.routes = {'TOP': [], 'LEFT': []}
@@ -113,7 +115,7 @@ class TrafficJunctionEnv(gym.Env):
         else:
             route_grid = self.route_grid if self.vocab_type == 'bool' else self.empty_grid
             self.routes = get_routes(self.dims, route_grid, self.difficulty)
-            paths = []  # Convert/unroll routes which is a list of list of paths
+            paths = []  # Convert/unroll routes which is a list of paths' list
             for r in self.routes:
                 for p in r:
                     paths.append(p)
@@ -125,6 +127,7 @@ class TrafficJunctionEnv(gym.Env):
         self.car_ids, self.car_loc, self.car_last_act, self.car_route_loc = None, None, None, None
         self.stat = None
         self.is_completed = None
+        self.n_agents = self.n_car
         return
 
     @staticmethod
@@ -198,7 +201,7 @@ class TrafficJunctionEnv(gym.Env):
                  'is_completed': np.copy(self.is_completed)}
         self.stat['success'] = 1 - self.has_failed
         self.stat['add_rate'] = self.add_rate
-        return self._get_obs(), self._get_reward(), self.episode_over, _, debug
+        return self._get_obs(), self._get_reward(), self.episode_over, False, debug
 
     def _get_obs(self):
         h, w = self.dims
@@ -326,11 +329,8 @@ class TrafficJunctionEnv(gym.Env):
         self.vWriter.write(frame)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Example GCCNet environment random storage')
-    parser.add_argument('--n_agents', type=int, default=16, help="Number of agents")
-    parser.add_argument('--n_predator', type=int, default=8, help="Number of agents")
-    parser.add_argument('--no-render', action='store_true', default=False, help='no render flag')
+def main():
+    parser = argparse.ArgumentParser()
     init_args(parser)
     args = parser.parse_args()
     env = TrafficJunctionEnv(args)
@@ -341,14 +341,17 @@ if __name__ == '__main__':
             done = False
             while not done:
                 actions = []
-                for _ in range(args.n_agents):
+                for _ in range(env.n_agents):
                     actions.append(env.action_space.sample())
                 actions = np.array(actions)
                 actions = actions.squeeze()
                 obs, reward, done, _, info = env.step(actions)
-                # if not args.no_render:
                 env.render()
             episodes += 1
         env.close()
     except KeyboardInterrupt:
         env.close()
+
+
+if __name__ == '__main__':
+    main()

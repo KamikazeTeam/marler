@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import gym
-import json
 from .wrappers import Recorder, Monitor, Stack
 from .wrappers import WrapDeepmindRender
 from .subproc_vec_env import SubprocVecEnv
