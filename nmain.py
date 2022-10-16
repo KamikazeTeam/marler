@@ -116,6 +116,9 @@ def main():
     torch.backends.cudnn.deterministic = True
 
     env = importlib.import_module('environment.' + args.env_mode).get_environment(args)
+    print(env.metadata['observation_space'], env.metadata['action_space'])
+    exit()
+
     mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, env.observation_space, env.action_space)
     stg = importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size)
     alg = importlib.import_module('algorithm.' + args.alg_mode).get_algorithm(args)

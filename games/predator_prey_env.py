@@ -19,7 +19,7 @@ class PredatorPreyEnv(gym.Env):
     def close(self):
         curses.endwin()
 
-    def __init__(self, args, render):
+    def __init__(self, args, render=True):
         self.n_predator = 18
         self.n_prey = 1
         self.dim = 15
@@ -45,7 +45,6 @@ class PredatorPreyEnv(gym.Env):
             curses.init_pair(4, curses.COLOR_GREEN, -1)
         # (0: UP, 1: RIGHT, 2: DOWN, 3: LEFT, 4: STAY)
         self.dims = (self.dim, self.dim)
-        self.action_space = gym.spaces.MultiDiscrete([self.n_action])
         self.BASE = (self.dims[0] * self.dims[1])
         self.OUTSIDE_CLASS += self.BASE
         self.PREDATOR_CLASS += self.BASE
@@ -53,11 +52,6 @@ class PredatorPreyEnv(gym.Env):
         # Setting max vocab size for 1-hot encoding
         self.vocab_size = 1 + 1 + self.BASE + 1 + 1
         #          predator + prey + grid + outside
-        # Observation for each storage will be vision * vision ndarray
-        self.observation_space = gym.spaces.Box(low=0, high=255,  # 1,
-                                                shape=(self.vocab_size, (2 * self.vision) + 1, (2 * self.vision) + 1),
-                                                dtype=np.uint8)  # int)
-        # Actual observation will be of the shape 1 * n_predator * (2v+1) * (2v+1) * vocab_size
         self.episode_over = False
         self.empty_grid = np.arange(self.BASE).reshape(self.dims)
         # Mark agents in grid
@@ -68,7 +62,21 @@ class PredatorPreyEnv(gym.Env):
         self.stat = dict()  # stat - like success ratio
         self.predator_loc, self.prey_loc = None, None
         self.reached_prey = None
-        self.n_agents = 16
+        self.metadata['n_agents'] = self.n_predator + self.n_prey - 1
+        self.metadata['observation_space'] = \
+            [gym.spaces.Box(low=0, high=255, shape=((2*self.vision)+1, (2*self.vision)+1, self.vocab_size),
+                            dtype=np.uint8) for _ in range(self.n_predator)] + \
+            [gym.spaces.Box(low=0, high=255, shape=((2*self.vision)+1, (2*self.vision)+1, self.vocab_size),
+                            dtype=np.uint8) for _ in range(self.n_prey)]
+        # Observation for each storage will be vision * vision ndarray
+        self.observation_space = \
+            gym.spaces.Box(low=0, high=255, shape=(self.metadata['n_agents'], (2*self.vision)+1, (2*self.vision)+1,
+                                                   self.vocab_size), dtype=np.uint8)  # int)
+        # Actual observation will be of the shape 1 * n_predator * (2v+1) * (2v+1) * vocab_size
+        self.metadata['action_space'] = \
+            [gym.spaces.Discrete(self.n_action) for _ in range(self.n_predator)] + \
+            [gym.spaces.Discrete(self.n_action) for _ in range(self.n_prey)]
+        self.action_space = gym.spaces.Discrete(self.n_action)  # MultiDiscrete([self.n_action])
         return
 
     def _onehot_initialization(self, a):
@@ -86,9 +94,7 @@ class PredatorPreyEnv(gym.Env):
         self.predator_loc, self.prey_loc = loc[:self.n_predator], loc[self.n_predator:]
         self.reached_prey = np.zeros(self.n_predator)
         # Observation will be n_predator * vision * vision ndarray
-        obs = self._get_obs()
-        print(obs.shape)
-        exit()
+        obs = self._get_obs().astype(np.uint8)  # 8,5,5,229
         return obs, {}
 
     def step(self, action):
@@ -219,7 +225,7 @@ def main():
     parser = argparse.ArgumentParser()
     init_args(parser)
     args = parser.parse_args()
-    env = PredatorPreyEnv(args)
+    env = PredatorPreyEnv(args.__dict__)
     episodes = 0
     try:
         while episodes < 50:
@@ -227,7 +233,7 @@ def main():
             done = False
             while not done:
                 actions = []
-                for _ in range(env.n_agents):
+                for _ in range(env.metadata['n_agents']):
                     actions.append(env.action_space.sample())
                 actions = np.array(actions)
                 actions = actions.squeeze()

@@ -54,6 +54,8 @@ def _worker(
                 remote.send(setattr(env, data[0], data[1]))
             elif cmd == "is_wrapped":
                 remote.send(is_wrapped(env, data))
+            elif cmd == "get_metadata":  # add metadata dictionary inherit
+                remote.send(env.metadata)
             else:
                 raise NotImplementedError(f"`{cmd}` is not implemented in the worker")
         except EOFError:
@@ -107,6 +109,8 @@ class SubprocVecEnv(VecEnv):
             self.processes.append(process)
             work_remote.close()
 
+        self.remotes[0].send(("get_metadata", None))  # add metadata dictionary inherit
+        self.metadata = self.remotes[0].recv()
         self.remotes[0].send(("get_spaces", None))
         observation_space, action_space = self.remotes[0].recv()
         VecEnv.__init__(self, len(env_fns), observation_space, action_space)

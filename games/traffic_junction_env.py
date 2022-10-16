@@ -25,7 +25,7 @@ class TrafficJunctionEnv(gym.Env):
         self.vWriter.release()
         curses.endwin()
 
-    def __init__(self, args, render):
+    def __init__(self, args, render=True):
         self.n_car = 16
         self.difficulty = 'hard'
         self.dim = 12
@@ -35,7 +35,7 @@ class TrafficJunctionEnv(gym.Env):
         self.curr_start, self.curr_end, self.epoch_last_update = 0, 0, 0
         self.vocab_type = 'bool'  # Setting max vocab size for 1-hot encoding
         for key in args:
-            setattr(self, key, getattr(args, key))
+            setattr(self, key, args[key])  # getattr(args, key))
         self.OUTSIDE_CLASS = 0
         self.ROAD_CLASS = 1
         self.CAR_CLASS = 2
@@ -333,7 +333,7 @@ def main():
     parser = argparse.ArgumentParser()
     init_args(parser)
     args = parser.parse_args()
-    env = TrafficJunctionEnv(args)
+    env = TrafficJunctionEnv(args.__dict__)
     episodes = 0
     try:
         while episodes < 5:
