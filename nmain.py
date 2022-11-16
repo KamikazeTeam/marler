@@ -9,7 +9,7 @@ import torch
 import wandb
 
 
-# @profile  # perf_counter used, not process_time,count real time,not cpu time
+# @profile  # perf_counter used, not process_time, count real time, not cpu time
 def train(args, env, mdl, stg, alg):
     if args.wandb:
         wandb.init(project=args.env_name)
@@ -18,40 +18,57 @@ def train(args, env, mdl, stg, alg):
     t, iterator = 0, tqdm.tqdm(range(args.max_train_steps))
     try:
         if args.to_load:
-            mdl.load()
+            for i in range(args.n_agents):
+                mdl[i].load(prefix=str(i))
         obs, info = env.reset()
         for t in iterator:
             for n in range(args.roll_num):
-                act, act_info = mdl.get_action(obs, explore=True)
+                act, act_info = [], []
+                for i in range(args.n_agents):
+                    act_i, act_info_i = mdl[i].get_action(obs[i], explore=True)
+                    act.append(act_i)
+                    act_info.append(act_info_i)
+                act = np.array(act)
                 new_obs, rew, done, timeout, info = env.step(act)  # must create a new_obs each step
-                stg.append_data(obs, act, act_info, new_obs, rew, done, info)
+                for i in range(args.n_agents):
+                    stg[i].append_data(obs[i], act[i], act_info[i], new_obs[i], rew[i], done, info)
                 obs = np.copy(new_obs)  # must copy!
-                for i, info_i in enumerate(info):
-                    if 'score' in info_i:
-                        if args.wandb:
-                            wandb.log({"g_step": info_i['g_step'],  # it is possible to have multi-score in same g_step
-                                       # "score/"+str(i): info_i['score'],
-                                       "scores": info_i['score']})
-            data = stg.get_data()
-            value_loss, action_loss, dist_entropy = alg.update(t, args.max_train_steps, data, mdl)
-            if args.wandb:
-                wandb.log({"update_step": (t+1)*args.roll_num*args.env_nums,  # g_step not only increase, need fix
-                           "value_loss": value_loss, "action_loss": action_loss, "dist_entropy": dist_entropy})
-            # wandb.watch(mdl)
-        mdl.save(str(args.env_seed) + '_' + str(t))
+                # if args.wandb:
+                #     for i, info_i in enumerate(info):
+                #         if 'score' in info_i:
+                #             wandb.log({"g_step": info_i['g_step'],  # it is possible to have multi-score in same g_step
+                #                        # "score/"+str(i): info_i['score'],
+                #                        "scores": info_i['score']})
+            for i in range(args.n_agents):
+                data = stg[i].get_data()
+                value_loss, action_loss, dist_entropy = alg[i].update(t, args.max_train_steps, data, mdl[i])
+                # if args.wandb:
+                #     wandb.log({"update_step": (t+1)*args.roll_num*args.env_nums,  # g_step not only increase, need fix
+                #                "value_loss": value_loss, "action_loss": action_loss, "dist_entropy": dist_entropy})
+                # wandb.watch(mdl)
+        for i in range(args.n_agents):
+            mdl[i].save(str(i) + '_' + str(args.env_seed) + '_' + str(t))
     except KeyboardInterrupt:
-        mdl.save(str(args.env_seed) + '_' + str(t))  # if pass, files will not have enough time to close...
+        for i in range(args.n_agents):
+            mdl[i].save(str(i) + '_' + str(args.env_seed) + '_' + str(t))
+            # if pass, files will not have enough time to close...
 
 
 def test(args, env, mdl):
-    mdl.load()
+    for i in range(args.n_agents):
+        mdl[i].load(prefix=str(i))
     obs, info = env.reset()
     args.max_test_steps = int(args.test_steps // args.env_nums)
     iterator = tqdm.tqdm(range(args.max_test_steps))
     for _ in iterator:
         if args.render:
             env.render()
-        act, act_info = mdl.get_action(obs, explore=False)
+        act, act_info = [], []
+        for i in range(args.n_agents):
+            act_i, act_info_i = mdl[i].get_action(obs[i], explore=False)
+            act.append(act_i)
+            act_info.append(act_info_i)
+        act = np.array(act)
         new_obs, rew, done, timeout, info = env.step(act)
         obs = np.copy(new_obs)
 
@@ -116,12 +133,20 @@ def main():
     torch.backends.cudnn.deterministic = True
 
     env = importlib.import_module('environment.' + args.env_mode).get_environment(args)
-    print(env.metadata['observation_space'], env.metadata['action_space'])
-    exit()
-
-    mdl = importlib.import_module('model.' + args.mdl_mode).get_model(args, env.observation_space, env.action_space)
-    stg = importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size)
-    alg = importlib.import_module('algorithm.' + args.alg_mode).get_algorithm(args)
+    print(env.metadata['n_agents'], env.metadata['observation_space'], env.metadata['action_space'])
+    args.n_agents = env.metadata['n_agents']
+    mdl, stg, alg = [], [], []
+    for i in range(args.n_agents):
+        if i != 0:
+            mdl.append(importlib.import_module('model.' + 'random')
+                       .get_model(args, env.metadata['observation_space'][i], env.metadata['action_space'][i]))
+            stg.append(importlib.import_module('storage.' + args.stg_mode).get_storage(1))
+            alg.append(importlib.import_module('algorithm.' + 'DoNothing').get_algorithm(args))
+        else:
+            mdl.append(importlib.import_module('model.' + args.mdl_mode)
+                       .get_model(args, env.metadata['observation_space'][i], env.metadata['action_space'][i]))
+            stg.append(importlib.import_module('storage.' + args.stg_mode).get_storage(args.memo_size))
+            alg.append(importlib.import_module('algorithm.' + args.alg_mode).get_algorithm(args))
     if args.test_steps:
         test(args, env, mdl)
     else:

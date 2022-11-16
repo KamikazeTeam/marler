@@ -3,6 +3,7 @@ from gym.envs.registration import register
 register(
     id='PredatorPrey-v0',
     entry_point='games.predator_prey_env:PredatorPreyEnv',
+    disable_env_checker=True,  #
 )
 
 register(

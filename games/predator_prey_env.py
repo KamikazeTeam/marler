@@ -70,8 +70,8 @@ class PredatorPreyEnv(gym.Env):
                             dtype=np.uint8) for _ in range(self.n_prey)]
         # Observation for each storage will be vision * vision ndarray
         self.observation_space = \
-            gym.spaces.Box(low=0, high=255, shape=(self.metadata['n_agents'], (2*self.vision)+1, (2*self.vision)+1,
-                                                   self.vocab_size), dtype=np.uint8)  # int)
+            gym.spaces.Box(low=0, high=255, shape=(self.metadata['n_agents'] * self.vocab_size,
+                                                   (2*self.vision)+1, (2*self.vision)+1), dtype=np.uint8)
         # Actual observation will be of the shape 1 * n_predator * (2v+1) * (2v+1) * vocab_size
         self.metadata['action_space'] = \
             [gym.spaces.Discrete(self.n_action) for _ in range(self.n_predator)] + \
@@ -94,8 +94,7 @@ class PredatorPreyEnv(gym.Env):
         self.predator_loc, self.prey_loc = loc[:self.n_predator], loc[self.n_predator:]
         self.reached_prey = np.zeros(self.n_predator)
         # Observation will be n_predator * vision * vision ndarray
-        obs = self._get_obs().astype(np.uint8)  # 8,5,5,229
-        return obs, {}
+        return self._get_obs(), {}  # 8,5,5,229
 
     def step(self, action):
         """ action : list/ndarray of length m, containing the indexes of what lever each 'm' chosen agents pulled.
@@ -127,7 +126,10 @@ class PredatorPreyEnv(gym.Env):
                 slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)
                 slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
                 _obs.append(grid[slice_y, slice_x])
-        return np.stack(_obs)
+        _obs = np.stack(_obs)
+        _obs = np.transpose(_obs, axes=[0, 3, 1, 2])  # change order to combine multi-agent axis with channel axis
+        _obs = _obs.reshape((_obs.shape[0]*_obs.shape[1], *_obs.shape[2:]))
+        return _obs.astype(np.uint8)
 
     def _take_action(self, idx, act):
         if idx >= self.n_predator:  # prey action

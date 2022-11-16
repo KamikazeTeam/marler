@@ -27,9 +27,12 @@ class Policy(torch.nn.Module):
     def get_action(self, _inputs, explore):
         # inputs = torch.from_numpy(_inputs).float().to(self.device)
         info_p = {}
-        action = np.zeros((_inputs.shape[0],))
-        print(action)
-        exit()
+        # action = np.zeros((_inputs.shape[0],))
+        action = []
+        for _ in range(_inputs.shape[0]):
+            action.append(self.act_space.sample())
+        action = np.array(action)
+        action = action.squeeze()
         return action, info_p
 
     def get_value(self, inputs):
