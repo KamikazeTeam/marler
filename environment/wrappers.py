@@ -4,6 +4,20 @@ import cv2
 import os
 
 
+class FakeMultiReshape(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+    def reset(self):
+        obs, info = self.env.reset()
+        return [obs], info
+
+    def step(self, action):
+        action = action[0]
+        obs, rew, done, timeout, info = self.env.step(action)
+        return [obs], [rew], done, timeout, info
+
+
 class Stack(gym.Wrapper):
     def __init__(self, env, args):
         gym.Wrapper.__init__(self, env=env)

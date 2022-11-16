@@ -6,7 +6,7 @@ from .subproc_vec_env import SubprocVecEnv
 import os
 
 
-class Preprocess(gym.Wrapper):
+class MultiReshape(gym.Wrapper):
     def __init__(self, env):
         super().__init__(env)
 
@@ -84,5 +84,5 @@ def get_environment(args):
     env = SubprocVecEnv(env)
     env = Stack(env, args)
     print(env.observation_space.shape, env.action_space)
-    env = Preprocess(env)
+    env = MultiReshape(env)
     return env

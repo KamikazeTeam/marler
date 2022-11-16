@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import gym
-from .wrappers import Recorder, Monitor, Stack
+from .wrappers import Recorder, Monitor, Stack, FakeMultiReshape
 from .wrappers import WrapDeepmindRender
 from .subproc_vec_env import SubprocVecEnv
 from .atari_wrappers import NoopResetEnv, MaxAndSkipEnv, \
@@ -52,5 +52,9 @@ def get_environment(args):
     env = [env_maker(args.env_name, ienv, args.env_seed, args) for ienv in range(args.env_nums)]
     env = SubprocVecEnv(env)
     env = Stack(env, args)
+    env.metadata['n_agents'] = 1
+    env.metadata['observation_space'] = [env.observation_space]
+    env.metadata['action_space'] = [env.action_space]
     print(env.observation_space.shape, env.action_space)
+    env = FakeMultiReshape(env)
     return env
