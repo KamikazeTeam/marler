@@ -4,7 +4,7 @@
 for ((i=$1; i<$1+$2; i++))
 do
   echo "$i" $(($1+$2-1))
-  python main.py --env-seed "$i" --env-mode 'traffic' --env-type '' --env-name "PredatorPrey-v0" \
+  python main.py --env-seed "$i" --env-mode 'traffic' --env-type '' --env-name "TalentLuck-v0" \
   --env-args '{"n_predator":6,"mode":"mixed"}' \
   --env-nums 3 --stack-num 4 --roll-num 5 --max-stepsM 3 --stg-mode deque --memo-size 5 \
   --mdl-mode neural --lr-M 700 --decay linear --decay-paras 0.01,, --opt RMSprop --alg-mode PTa2c1 \
